@@ -23,167 +23,144 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
+#include <mpcfile.h>
 #include <apetag.h>
 #include <id3v1tag.h>
-#include <tstringlist.h>
-#include <tbytevectorlist.h>
 #include <tpropertymap.h>
-#include <mpcfile.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestMPC : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestMPC)
+
+BOOST_AUTO_TEST_CASE(testPropertiesSV8)
 {
-  CPPUNIT_TEST_SUITE(TestMPC);
-  CPPUNIT_TEST(testPropertiesSV8);
-  CPPUNIT_TEST(testPropertiesSV7);
-  CPPUNIT_TEST(testPropertiesSV5);
-  CPPUNIT_TEST(testPropertiesSV4);
-  CPPUNIT_TEST(testFuzzedFile1);
-  CPPUNIT_TEST(testFuzzedFile2);
-  CPPUNIT_TEST(testFuzzedFile3);
-  CPPUNIT_TEST(testFuzzedFile4);
-  CPPUNIT_TEST(testStripAndProperties);
-  CPPUNIT_TEST(testRepeatedSave);
-  CPPUNIT_TEST_SUITE_END();
+  MPC::File f(TEST_FILE_PATH_C("sv8_header.mpc"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->mpcVersion(), 8);
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 1);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 1);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 1497);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 1);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 66014);
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testPropertiesSV7)
+{
+  MPC::File f(TEST_FILE_PATH_C("click.mpc"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->mpcVersion(), 7);
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 40);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 318);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 1760);
+  BOOST_CHECK_EQUAL(f.audioProperties()->trackGain(), 14221);
+  BOOST_CHECK_EQUAL(f.audioProperties()->trackPeak(), 19848);
+  BOOST_CHECK_EQUAL(f.audioProperties()->albumGain(), 14221);
+  BOOST_CHECK_EQUAL(f.audioProperties()->albumPeak(), 19848);
+}
 
-  void testPropertiesSV8()
+BOOST_AUTO_TEST_CASE(testPropertiesSV5)
+{
+  MPC::File f(TEST_FILE_PATH_C("sv5_header.mpc"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->mpcVersion(), 5);
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 26);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 26);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 26371);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 1162944);
+}
+
+BOOST_AUTO_TEST_CASE(testPropertiesSV4)
+{
+  MPC::File f(TEST_FILE_PATH_C("sv4_header.mpc"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->mpcVersion(), 4);
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 26);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 26);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 26371);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 1162944);
+}
+
+BOOST_AUTO_TEST_CASE(testFuzzedFile1)
+{
+  MPC::File f(TEST_FILE_PATH_C("zerodiv.mpc"));
+  BOOST_CHECK(f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testFuzzedFile2)
+{
+  MPC::File f(TEST_FILE_PATH_C("infloop.mpc"));
+  BOOST_CHECK(f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testFuzzedFile3)
+{
+  MPC::File f(TEST_FILE_PATH_C("segfault.mpc"));
+  BOOST_CHECK(f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testFuzzedFile4)
+{
+  MPC::File f(TEST_FILE_PATH_C("segfault2.mpc"));
+  BOOST_CHECK(f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testStripAndProperties)
+{
+  const ScopedFileCopy copy("click", ".mpc");
   {
-    MPC::File f(TEST_FILE_PATH_C("sv8_header.mpc"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(8, f.audioProperties()->mpcVersion());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(1497, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(66014U, f.audioProperties()->sampleFrames());
+    MPC::File f(copy.fileName());
+    f.APETag(true)->setTitle("APE");
+    f.ID3v1Tag(true)->setTitle("ID3v1");
+    f.save();
   }
-
-  void testPropertiesSV7()
   {
-    MPC::File f(TEST_FILE_PATH_C("click.mpc"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(7, f.audioProperties()->mpcVersion());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(40, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(318, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(1760U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(14221, f.audioProperties()->trackGain());
-    CPPUNIT_ASSERT_EQUAL(19848, f.audioProperties()->trackPeak());
-    CPPUNIT_ASSERT_EQUAL(14221, f.audioProperties()->albumGain());
-    CPPUNIT_ASSERT_EQUAL(19848, f.audioProperties()->albumPeak());
+    MPC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.properties()["TITLE"].front(), "APE");
+    f.strip(MPC::File::APE);
+    BOOST_CHECK_EQUAL(f.properties()["TITLE"].front(), "ID3v1");
+    f.strip(MPC::File::ID3v1);
+    BOOST_CHECK(f.properties().isEmpty());
   }
+}
 
-  void testPropertiesSV5()
+BOOST_AUTO_TEST_CASE(testRepeatedSave)
+{
+  const ScopedFileCopy copy("click", ".mpc");
   {
-    MPC::File f(TEST_FILE_PATH_C("sv5_header.mpc"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(5, f.audioProperties()->mpcVersion());
-    CPPUNIT_ASSERT_EQUAL(26, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(26, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(26371, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(1162944U, f.audioProperties()->sampleFrames());
+    MPC::File f(copy.fileName());
+    BOOST_CHECK(!f.hasAPETag());
+    BOOST_CHECK(!f.hasID3v1Tag());
+  
+    f.APETag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.save();
+  
+    f.APETag()->setTitle("0");
+    f.save();
+  
+    f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.APETag()->setTitle("01234 56789 ABCDE FGHIJ 01234 56789 ABCDE FGHIJ 01234 56789");
+    f.save();
   }
-
-  void testPropertiesSV4()
   {
-    MPC::File f(TEST_FILE_PATH_C("sv4_header.mpc"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(4, f.audioProperties()->mpcVersion());
-    CPPUNIT_ASSERT_EQUAL(26, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(26, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(26371, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(1162944U, f.audioProperties()->sampleFrames());
+    MPC::File f(copy.fileName());
+    BOOST_CHECK(f.hasAPETag());
+    BOOST_CHECK(f.hasID3v1Tag());
   }
+}
 
-  void testFuzzedFile1()
-  {
-    MPC::File f(TEST_FILE_PATH_C("zerodiv.mpc"));
-    CPPUNIT_ASSERT(f.isValid());
-  }
-
-  void testFuzzedFile2()
-  {
-    MPC::File f(TEST_FILE_PATH_C("infloop.mpc"));
-    CPPUNIT_ASSERT(f.isValid());
-  }
-
-  void testFuzzedFile3()
-  {
-    MPC::File f(TEST_FILE_PATH_C("segfault.mpc"));
-    CPPUNIT_ASSERT(f.isValid());
-  }
-
-  void testFuzzedFile4()
-  {
-    MPC::File f(TEST_FILE_PATH_C("segfault2.mpc"));
-    CPPUNIT_ASSERT(f.isValid());
-  }
-
-  void testStripAndProperties()
-  {
-    ScopedFileCopy copy("click", ".mpc");
-
-    {
-      MPC::File f(copy.fileName().c_str());
-      f.APETag(true)->setTitle("APE");
-      f.ID3v1Tag(true)->setTitle("ID3v1");
-      f.save();
-    }
-    {
-      MPC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT_EQUAL(String("APE"), f.properties()["TITLE"].front());
-      f.strip(MPC::File::APE);
-      CPPUNIT_ASSERT_EQUAL(String("ID3v1"), f.properties()["TITLE"].front());
-      f.strip(MPC::File::ID3v1);
-      CPPUNIT_ASSERT(f.properties().isEmpty());
-    }
-  }
-
-  void testRepeatedSave()
-  {
-    ScopedFileCopy copy("click", ".mpc");
-
-    {
-      MPC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(!f.hasAPETag());
-      CPPUNIT_ASSERT(!f.hasID3v1Tag());
-
-      f.APETag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.save();
-
-      f.APETag()->setTitle("0");
-      f.save();
-
-      f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.APETag()->setTitle("01234 56789 ABCDE FGHIJ 01234 56789 ABCDE FGHIJ 01234 56789");
-      f.save();
-    }
-    {
-      MPC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasAPETag());
-      CPPUNIT_ASSERT(f.hasID3v1Tag());
-    }
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestMPC);
+BOOST_AUTO_TEST_SUITE_END()

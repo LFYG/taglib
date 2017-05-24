@@ -23,518 +23,463 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
-#include <tag.h>
-#include <tstringlist.h>
-#include <tbytevectorlist.h>
-#include <tpropertymap.h>
 #include <flacfile.h>
 #include <xiphcomment.h>
-#include <id3v1tag.h>
 #include <id3v2tag.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <id3v1tag.h>
+#include <tpropertymap.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestFLAC : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestFLAC)
+
+BOOST_AUTO_TEST_CASE(testSignature)
 {
-  CPPUNIT_TEST_SUITE(TestFLAC);
-  CPPUNIT_TEST(testSignature);
-  CPPUNIT_TEST(testMultipleCommentBlocks);
-  CPPUNIT_TEST(testReadPicture);
-  CPPUNIT_TEST(testAddPicture);
-  CPPUNIT_TEST(testReplacePicture);
-  CPPUNIT_TEST(testRemoveAllPictures);
-  CPPUNIT_TEST(testRepeatedSave1);
-  CPPUNIT_TEST(testRepeatedSave2);
-  CPPUNIT_TEST(testRepeatedSave3);
-  CPPUNIT_TEST(testSaveMultipleValues);
-  CPPUNIT_TEST(testDict);
-  CPPUNIT_TEST(testInvalid);
-  CPPUNIT_TEST(testAudioProperties);
-  CPPUNIT_TEST(testZeroSizedPadding1);
-  CPPUNIT_TEST(testZeroSizedPadding2);
-  CPPUNIT_TEST(testShrinkPadding);
-  CPPUNIT_TEST(testSaveID3v1);
-  CPPUNIT_TEST(testUpdateID3v2);
-  CPPUNIT_TEST(testEmptyID3v2);
-  CPPUNIT_TEST(testStripTags);
-  CPPUNIT_TEST(testRemoveXiphField);
-  CPPUNIT_TEST(testEmptySeekTable);
-  CPPUNIT_TEST_SUITE_END();
+  FLAC::File f(TEST_FILE_PATH_C("no-tags.flac"));
+  BOOST_CHECK_EQUAL(f.audioProperties()->signature().toHex(), "a1b141f766e9849ac3db1030a20a3c77");
+}
 
-public:
-
-  void testSignature()
+BOOST_AUTO_TEST_CASE(testMultipleCommentBlocks)
+{
+  const ScopedFileCopy copy("multiple-vc", ".flac");
   {
-    FLAC::File f(TEST_FILE_PATH_C("no-tags.flac"));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("a1b141f766e9849ac3db1030a20a3c77"), f.audioProperties()->signature().toHex());
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.tag()->artist(), "Artist 1");
+    f.tag()->setArtist("The Artist");
+    f.save();
   }
-
-  void testMultipleCommentBlocks()
   {
-    ScopedFileCopy copy("multiple-vc", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      CPPUNIT_ASSERT_EQUAL(String("Artist 1"), f.tag()->artist());
-      f.tag()->setArtist("The Artist");
-      f.save();
-    }
-    {
-      FLAC::File f(newname.c_str());
-      CPPUNIT_ASSERT_EQUAL(String("The Artist"), f.tag()->artist());
-      CPPUNIT_ASSERT_EQUAL(69L, f.find("Artist"));
-      CPPUNIT_ASSERT_EQUAL(-1L, f.find("Artist", 70));
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.tag()->artist(), "The Artist");
+    BOOST_CHECK_EQUAL(f.find("Artist"), 69);
+    BOOST_CHECK_EQUAL(f.find("Artist", 70), -1);
   }
+}
 
-  void testReadPicture()
+BOOST_AUTO_TEST_CASE(testReadPicture)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  
+  FLAC::File f(copy.fileName());
+  List<FLAC::Picture *> lst = f.pictureList();
+  BOOST_CHECK_EQUAL(lst.size(), 1);
+  
+  FLAC::Picture *pic = lst.front();
+  BOOST_CHECK_EQUAL(pic->type(), FLAC::Picture::FrontCover);
+  BOOST_CHECK_EQUAL(pic->width(), 1);
+  BOOST_CHECK_EQUAL(pic->height(), 1);
+  BOOST_CHECK_EQUAL(pic->colorDepth(), 24);
+  BOOST_CHECK_EQUAL(pic->numColors(), 0);
+  BOOST_CHECK_EQUAL(pic->mimeType(), "image/png");
+  BOOST_CHECK_EQUAL(pic->description(), "A pixel.");
+  BOOST_CHECK_EQUAL(pic->data().size(), 150);
+}
+
+BOOST_AUTO_TEST_CASE(testAddPicture)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    FLAC::File f(newname.c_str());
+    FLAC::File f(copy.fileName());
     List<FLAC::Picture *> lst = f.pictureList();
-    CPPUNIT_ASSERT_EQUAL((unsigned int)1, lst.size());
-
-    FLAC::Picture *pic = lst.front();
-    CPPUNIT_ASSERT_EQUAL(FLAC::Picture::FrontCover, pic->type());
-    CPPUNIT_ASSERT_EQUAL(1, pic->width());
-    CPPUNIT_ASSERT_EQUAL(1, pic->height());
-    CPPUNIT_ASSERT_EQUAL(24, pic->colorDepth());
-    CPPUNIT_ASSERT_EQUAL(0, pic->numColors());
-    CPPUNIT_ASSERT_EQUAL(String("image/png"), pic->mimeType());
-    CPPUNIT_ASSERT_EQUAL(String("A pixel."), pic->description());
-    CPPUNIT_ASSERT_EQUAL((unsigned int)150, pic->data().size());
+    BOOST_CHECK_EQUAL(lst.size(), 1);
+  
+    FLAC::Picture *newpic = new FLAC::Picture();
+    newpic->setType(FLAC::Picture::BackCover);
+    newpic->setWidth(5);
+    newpic->setHeight(6);
+    newpic->setColorDepth(16);
+    newpic->setNumColors(7);
+    newpic->setMimeType("image/jpeg");
+    newpic->setDescription("new image");
+    newpic->setData("JPEG data");
+    f.addPicture(newpic);
+    f.save();
   }
-
-  void testAddPicture()
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      List<FLAC::Picture *> lst = f.pictureList();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)1, lst.size());
-
-      FLAC::Picture *newpic = new FLAC::Picture();
-      newpic->setType(FLAC::Picture::BackCover);
-      newpic->setWidth(5);
-      newpic->setHeight(6);
-      newpic->setColorDepth(16);
-      newpic->setNumColors(7);
-      newpic->setMimeType("image/jpeg");
-      newpic->setDescription("new image");
-      newpic->setData("JPEG data");
-      f.addPicture(newpic);
-      f.save();
-    }
-    {
-      FLAC::File f(newname.c_str());
-      List<FLAC::Picture *> lst = f.pictureList();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)2, lst.size());
-
-      FLAC::Picture *pic = lst[0];
-      CPPUNIT_ASSERT_EQUAL(FLAC::Picture::FrontCover, pic->type());
-      CPPUNIT_ASSERT_EQUAL(1, pic->width());
-      CPPUNIT_ASSERT_EQUAL(1, pic->height());
-      CPPUNIT_ASSERT_EQUAL(24, pic->colorDepth());
-      CPPUNIT_ASSERT_EQUAL(0, pic->numColors());
-      CPPUNIT_ASSERT_EQUAL(String("image/png"), pic->mimeType());
-      CPPUNIT_ASSERT_EQUAL(String("A pixel."), pic->description());
-      CPPUNIT_ASSERT_EQUAL((unsigned int)150, pic->data().size());
-
-      pic = lst[1];
-      CPPUNIT_ASSERT_EQUAL(FLAC::Picture::BackCover, pic->type());
-      CPPUNIT_ASSERT_EQUAL(5, pic->width());
-      CPPUNIT_ASSERT_EQUAL(6, pic->height());
-      CPPUNIT_ASSERT_EQUAL(16, pic->colorDepth());
-      CPPUNIT_ASSERT_EQUAL(7, pic->numColors());
-      CPPUNIT_ASSERT_EQUAL(String("image/jpeg"), pic->mimeType());
-      CPPUNIT_ASSERT_EQUAL(String("new image"), pic->description());
-      CPPUNIT_ASSERT_EQUAL(ByteVector("JPEG data"), pic->data());
-    }
+    FLAC::File f(copy.fileName());
+    List<FLAC::Picture *> lst = f.pictureList();
+    BOOST_CHECK_EQUAL(lst.size(), 2);
+  
+    FLAC::Picture *pic = lst[0];
+    BOOST_CHECK_EQUAL(pic->type(), FLAC::Picture::FrontCover);
+    BOOST_CHECK_EQUAL(pic->width(), 1);
+    BOOST_CHECK_EQUAL(pic->height(), 1);
+    BOOST_CHECK_EQUAL(pic->colorDepth(), 24);
+    BOOST_CHECK_EQUAL(pic->numColors(), 0);
+    BOOST_CHECK_EQUAL(pic->mimeType(), "image/png");
+    BOOST_CHECK_EQUAL(pic->description(), "A pixel.");
+    BOOST_CHECK_EQUAL(pic->data().size(), 150);
+  
+    pic = lst[1];
+    BOOST_CHECK_EQUAL(pic->type(), FLAC::Picture::BackCover);
+    BOOST_CHECK_EQUAL(pic->width(), 5);
+    BOOST_CHECK_EQUAL(pic->height(), 6);
+    BOOST_CHECK_EQUAL(pic->colorDepth(), 16);
+    BOOST_CHECK_EQUAL(pic->numColors(), 7);
+    BOOST_CHECK_EQUAL(pic->mimeType(), "image/jpeg");
+    BOOST_CHECK_EQUAL(pic->description(), "new image");
+    BOOST_CHECK_EQUAL(pic->data(), "JPEG data");
   }
+}
 
-  void testReplacePicture()
+BOOST_AUTO_TEST_CASE(testReplacePicture)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      List<FLAC::Picture *> lst = f.pictureList();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)1, lst.size());
-
-      FLAC::Picture *newpic = new FLAC::Picture();
-      newpic->setType(FLAC::Picture::BackCover);
-      newpic->setWidth(5);
-      newpic->setHeight(6);
-      newpic->setColorDepth(16);
-      newpic->setNumColors(7);
-      newpic->setMimeType("image/jpeg");
-      newpic->setDescription("new image");
-      newpic->setData("JPEG data");
-      f.removePictures();
-      f.addPicture(newpic);
-      f.save();
-    }
-    {
-      FLAC::File f(newname.c_str());
-      List<FLAC::Picture *> lst = f.pictureList();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)1, lst.size());
-
-      FLAC::Picture *pic = lst[0];
-      CPPUNIT_ASSERT_EQUAL(FLAC::Picture::BackCover, pic->type());
-      CPPUNIT_ASSERT_EQUAL(5, pic->width());
-      CPPUNIT_ASSERT_EQUAL(6, pic->height());
-      CPPUNIT_ASSERT_EQUAL(16, pic->colorDepth());
-      CPPUNIT_ASSERT_EQUAL(7, pic->numColors());
-      CPPUNIT_ASSERT_EQUAL(String("image/jpeg"), pic->mimeType());
-      CPPUNIT_ASSERT_EQUAL(String("new image"), pic->description());
-      CPPUNIT_ASSERT_EQUAL(ByteVector("JPEG data"), pic->data());
-    }
+    FLAC::File f(copy.fileName());
+    List<FLAC::Picture *> lst = f.pictureList();
+    BOOST_CHECK_EQUAL(lst.size(), 1);
+  
+    FLAC::Picture *newpic = new FLAC::Picture();
+    newpic->setType(FLAC::Picture::BackCover);
+    newpic->setWidth(5);
+    newpic->setHeight(6);
+    newpic->setColorDepth(16);
+    newpic->setNumColors(7);
+    newpic->setMimeType("image/jpeg");
+    newpic->setDescription("new image");
+    newpic->setData("JPEG data");
+    f.removePictures();
+    f.addPicture(newpic);
+    f.save();
   }
-
-  void testRemoveAllPictures()
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      List<FLAC::Picture *> lst = f.pictureList();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)1, lst.size());
-
-      f.removePictures();
-      f.save();
-    }
-    {
-      FLAC::File f(newname.c_str());
-      List<FLAC::Picture *> lst = f.pictureList();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)0, lst.size());
-    }
+    FLAC::File f(copy.fileName());
+    List<FLAC::Picture *> lst = f.pictureList();
+    BOOST_CHECK_EQUAL(lst.size(), 1);
+  
+    FLAC::Picture *pic = lst[0];
+    BOOST_CHECK_EQUAL(pic->type(), FLAC::Picture::BackCover);
+    BOOST_CHECK_EQUAL(pic->width(), 5);
+    BOOST_CHECK_EQUAL(pic->height(), 6);
+    BOOST_CHECK_EQUAL(pic->colorDepth(), 16);
+    BOOST_CHECK_EQUAL(pic->numColors(), 7);
+    BOOST_CHECK_EQUAL(pic->mimeType(), "image/jpeg");
+    BOOST_CHECK_EQUAL(pic->description(), "new image");
+    BOOST_CHECK_EQUAL(pic->data(), "JPEG data");
   }
+}
 
-  void testRepeatedSave1()
+BOOST_AUTO_TEST_CASE(testRemoveAllPictures)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      CPPUNIT_ASSERT_EQUAL(String("Silence"), f.tag()->title());
-      f.tag()->setTitle("NEW TITLE");
-      f.save();
-      CPPUNIT_ASSERT_EQUAL(String("NEW TITLE"), f.tag()->title());
-      f.tag()->setTitle("NEW TITLE 2");
-      f.save();
-      CPPUNIT_ASSERT_EQUAL(String("NEW TITLE 2"), f.tag()->title());
-    }
-    {
-      FLAC::File f(newname.c_str());
-      CPPUNIT_ASSERT_EQUAL(String("NEW TITLE 2"), f.tag()->title());
-    }
+    FLAC::File f(copy.fileName());
+    List<FLAC::Picture *> lst = f.pictureList();
+    BOOST_CHECK_EQUAL(lst.size(), 1);
+  
+    f.removePictures();
+    f.save();
   }
-
-  void testRepeatedSave2()
   {
-    ScopedFileCopy copy("no-tags", ".flac");
+    FLAC::File f(copy.fileName());
+    List<FLAC::Picture *> lst = f.pictureList();
+    BOOST_CHECK_EQUAL(lst.size(), 0);
+  }
+}
 
-    FLAC::File f(copy.fileName().c_str());
+BOOST_AUTO_TEST_CASE(testRepeatedSave1)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  {
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.tag()->title(), "Silence");
+    f.tag()->setTitle("NEW TITLE");
+    f.save();
+    BOOST_CHECK_EQUAL(f.tag()->title(), "NEW TITLE");
+    f.tag()->setTitle("NEW TITLE 2");
+    f.save();
+    BOOST_CHECK_EQUAL(f.tag()->title(), "NEW TITLE 2");
+  }
+  {
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.tag()->title(), "NEW TITLE 2");
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testRepeatedSave2)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
+  
+  FLAC::File f(copy.fileName());
+  f.ID3v2Tag(true)->setTitle("0123456789");
+  f.save();
+  BOOST_CHECK_EQUAL(f.length(), 5735);
+  f.save();
+  BOOST_CHECK_EQUAL(f.length(), 5735);
+  BOOST_CHECK(f.find("fLaC") >= 0);
+}
+
+BOOST_AUTO_TEST_CASE(testRepeatedSave3)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
+
+  FLAC::File f(copy.fileName());
+  f.xiphComment()->setTitle(longText(8 * 1024));
+  f.save();
+  BOOST_CHECK_EQUAL(f.length(), 12862);
+  f.save();
+  BOOST_CHECK_EQUAL(f.length(), 12862);
+}
+
+BOOST_AUTO_TEST_CASE(testSaveMultipleValues)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  {
+    FLAC::File f(copy.fileName());
+    f.xiphComment(true)->addField("ARTIST", "artist 1", true);
+    f.xiphComment(true)->addField("ARTIST", "artist 2", false);
+    f.save();
+  }
+  {
+    FLAC::File f(copy.fileName());
+    const Ogg::FieldListMap m = f.xiphComment()->fieldListMap();
+    BOOST_CHECK_EQUAL(m["ARTIST"].size(), 2);
+    BOOST_CHECK_EQUAL(m["ARTIST"][0], "artist 1");
+    BOOST_CHECK_EQUAL(m["ARTIST"][1], "artist 2");
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testDict)
+{
+  // test unicode & multiple values with dict interface
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  {
+    FLAC::File f(copy.fileName());
+    PropertyMap dict;
+    dict["ARTIST"].append("artøst 1");
+    dict["ARTIST"].append("artöst 2");
+    f.setProperties(dict);
+    f.save();
+  }
+  {
+    FLAC::File f(copy.fileName());
+    const PropertyMap dict = f.properties();
+    BOOST_CHECK_EQUAL(dict["ARTIST"].size(), 2);
+    BOOST_CHECK_EQUAL(dict["ARTIST"][0], "artøst 1");
+    BOOST_CHECK_EQUAL(dict["ARTIST"][1], "artöst 2");
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testInvalid)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  PropertyMap map;
+  map[L"H\x00c4\x00d6"] = String("bla");
+  FLAC::File f(copy.fileName());
+  const PropertyMap invalid = f.setProperties(map);
+  BOOST_CHECK_EQUAL(invalid.size(), 1);
+  BOOST_CHECK(f.properties().isEmpty());
+}
+
+BOOST_AUTO_TEST_CASE(testAudioProperties)
+{
+  FLAC::File f(TEST_FILE_PATH_C("sinewave.flac"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 3550);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 145);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleWidth(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 156556);
+  BOOST_CHECK_EQUAL(
+    f.audioProperties()->signature(), 
+    "\xcf\xe3\xd9\xda\xba\xde\xab\x2c\xbf\x2c\xa2\x35\x27\x4b\x7f\x76");
+}
+
+BOOST_AUTO_TEST_CASE(testZeroSizedPadding1)
+{
+  const ScopedFileCopy copy("zero-sized-padding", ".flac");
+  
+  FLAC::File f(copy.fileName());
+  BOOST_CHECK(f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testZeroSizedPadding2)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  {
+    FLAC::File f(copy.fileName());
+    f.xiphComment()->setTitle("ABC");
+    f.save();
+  }
+  {
+    FLAC::File f(copy.fileName());
+    f.xiphComment()->setTitle(std::string(3067, 'X').c_str());
+    f.save();
+  }
+  {
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.isValid());
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testShrinkPadding)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
+  
+  {
+    FLAC::File f(copy.fileName());
+    f.xiphComment()->setTitle(longText(128 * 1024));
+    f.save();
+    BOOST_CHECK(f.length() > 128 * 1024);
+  }
+  {
+    FLAC::File f(copy.fileName());
+    f.xiphComment()->setTitle("0123456789");
+    f.save();
+    BOOST_CHECK(f.length() < 8 * 1024);
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testSaveID3v1)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
+  ByteVector audioStream;
+  {
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(!f.hasID3v1Tag());
+    BOOST_CHECK_EQUAL(f.length(), 4692);
+  
+    f.seek(0x0100);
+    audioStream = f.readBlock(4436);
+  
+    f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.save();
+    BOOST_CHECK(f.hasID3v1Tag());
+    BOOST_CHECK_EQUAL(f.length(), 4820);
+  
+    f.seek(0x0100);
+    BOOST_CHECK_EQUAL(f.readBlock(4436), audioStream);
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testUpdateID3v2)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
+  {
+    FLAC::File f(copy.fileName());
     f.ID3v2Tag(true)->setTitle("0123456789");
     f.save();
-    CPPUNIT_ASSERT_EQUAL(5735L, f.length());
+  }
+  {
+    FLAC::File f(copy.fileName());
+    f.ID3v2Tag()->setTitle("ABCDEFGHIJ");
     f.save();
-    CPPUNIT_ASSERT_EQUAL(5735L, f.length());
-    CPPUNIT_ASSERT(f.find("fLaC") >= 0);
   }
-
-  void testRepeatedSave3()
   {
-    ScopedFileCopy copy("no-tags", ".flac");
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.ID3v2Tag()->title(), "ABCDEFGHIJ");
+  }
+}
 
-    FLAC::File f(copy.fileName().c_str());
-    f.xiphComment()->setTitle(longText(8 * 1024));
+BOOST_AUTO_TEST_CASE(testEmptyID3v2)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
+  {
+    FLAC::File f(copy.fileName());
+    f.ID3v2Tag(true);
     f.save();
-    CPPUNIT_ASSERT_EQUAL(12862L, f.length());
+  }
+  {
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(!f.hasID3v2Tag());
+  }
+}
+
+BOOST_AUTO_TEST_CASE(testStripTags)
+{
+  const ScopedFileCopy copy("silence-44-s", ".flac");
+  {
+    FLAC::File f(copy.fileName());
+    f.xiphComment(true)->setTitle("XiphComment Title");
+    f.ID3v1Tag(true)->setTitle("ID3v1 Title");
+    f.ID3v2Tag(true)->setTitle("ID3v2 Title");
     f.save();
-    CPPUNIT_ASSERT_EQUAL(12862L, f.length());
   }
-
-  void testSaveMultipleValues()
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      f.xiphComment(true)->addField("ARTIST", "artist 1", true);
-      f.xiphComment(true)->addField("ARTIST", "artist 2", false);
-      f.save();
-    }
-    {
-      FLAC::File f(newname.c_str());
-      Ogg::FieldListMap m = f.xiphComment()->fieldListMap();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)2, m["ARTIST"].size());
-      CPPUNIT_ASSERT_EQUAL(String("artist 1"), m["ARTIST"][0]);
-      CPPUNIT_ASSERT_EQUAL(String("artist 2"), m["ARTIST"][1]);
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.hasXiphComment());
+    BOOST_CHECK(f.hasID3v1Tag());
+    BOOST_CHECK(f.hasID3v2Tag());
+    BOOST_CHECK_EQUAL(f.xiphComment()->title(), "XiphComment Title");
+    BOOST_CHECK_EQUAL(f.ID3v1Tag()->title(), "ID3v1 Title");
+    BOOST_CHECK_EQUAL(f.ID3v2Tag()->title(), "ID3v2 Title");
+    f.strip(FLAC::File::ID3v2);
+    f.save();
   }
-
-  void testDict()
   {
-    // test unicode & multiple values with dict interface
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    string newname = copy.fileName();
-
-    {
-      FLAC::File f(newname.c_str());
-      PropertyMap dict;
-      dict["ARTIST"].append("artøst 1");
-      dict["ARTIST"].append("artöst 2");
-      f.setProperties(dict);
-      f.save();
-    }
-    {
-      FLAC::File f(newname.c_str());
-      PropertyMap dict = f.properties();
-      CPPUNIT_ASSERT_EQUAL((unsigned int)2, dict["ARTIST"].size());
-      CPPUNIT_ASSERT_EQUAL(String("artøst 1"), dict["ARTIST"][0]);
-      CPPUNIT_ASSERT_EQUAL(String("artöst 2"), dict["ARTIST"][1]);
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.hasXiphComment());
+    BOOST_CHECK(f.hasID3v1Tag());
+    BOOST_CHECK(!f.hasID3v2Tag());
+    BOOST_CHECK_EQUAL(f.xiphComment()->title(), "XiphComment Title");
+    BOOST_CHECK_EQUAL(f.ID3v1Tag()->title(), "ID3v1 Title");
+    f.strip(FLAC::File::ID3v1);
+    f.save();
   }
-
-  void testInvalid()
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-    PropertyMap map;
-    map[L"H\x00c4\x00d6"] = String("bla");
-    FLAC::File f(copy.fileName().c_str());
-    PropertyMap invalid = f.setProperties(map);
-    CPPUNIT_ASSERT_EQUAL((unsigned int)1, invalid.size());
-    CPPUNIT_ASSERT_EQUAL((unsigned int)0, f.properties().size());
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.hasXiphComment());
+    BOOST_CHECK(!f.hasID3v1Tag());
+    BOOST_CHECK(!f.hasID3v2Tag());
+    BOOST_CHECK_EQUAL(f.xiphComment()->title(), "XiphComment Title");
+    f.strip(FLAC::File::XiphComment);
+    f.save();
   }
-
-  void testAudioProperties()
   {
-    FLAC::File f(TEST_FILE_PATH_C("sinewave.flac"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(3550, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(145, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->sampleWidth());
-    CPPUNIT_ASSERT_EQUAL(156556ULL, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(
-      ByteVector("\xcf\xe3\xd9\xda\xba\xde\xab\x2c\xbf\x2c\xa2\x35\x27\x4b\x7f\x76"),
-      f.audioProperties()->signature());
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.hasXiphComment());
+    BOOST_CHECK(!f.hasID3v1Tag());
+    BOOST_CHECK(!f.hasID3v2Tag());
+    BOOST_CHECK(f.xiphComment()->isEmpty());
+    BOOST_CHECK_EQUAL(f.xiphComment()->vendorID(), "reference libFLAC 1.1.0 20030126");
   }
+}
 
-  void testZeroSizedPadding1()
+BOOST_AUTO_TEST_CASE(testRemoveXiphField)
+{
+  const ScopedFileCopy copy("no-tags", ".flac");
   {
-    ScopedFileCopy copy("zero-sized-padding", ".flac");
-
-    FLAC::File f(copy.fileName().c_str());
-    CPPUNIT_ASSERT(f.isValid());
+    FLAC::File f(copy.fileName());
+    f.xiphComment(true)->setTitle("XiphComment Title");
+    f.ID3v2Tag(true)->setTitle("ID3v2 Title");
+    f.save();
   }
-
-  void testZeroSizedPadding2()
   {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.xiphComment()->setTitle("ABC");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.xiphComment()->setTitle(std::string(3067, 'X').c_str());
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.isValid());
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.xiphComment()->title(), "XiphComment Title");
+    f.xiphComment()->removeFields("TITLE");
+    f.save();
   }
-
-  void testShrinkPadding()
   {
-    ScopedFileCopy copy("no-tags", ".flac");
-
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.xiphComment()->setTitle(longText(128 * 1024));
-      f.save();
-      CPPUNIT_ASSERT(f.length() > 128 * 1024);
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.xiphComment()->setTitle("0123456789");
-      f.save();
-      CPPUNIT_ASSERT(f.length() < 8 * 1024);
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.xiphComment()->title().isEmpty());
   }
+}
 
-  void testSaveID3v1()
+BOOST_AUTO_TEST_CASE(testEmptySeekTable)
+{
+  const ScopedFileCopy copy("empty-seektable", ".flac");
   {
-    ScopedFileCopy copy("no-tags", ".flac");
-
-    ByteVector audioStream;
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(!f.hasID3v1Tag());
-      CPPUNIT_ASSERT_EQUAL((long)4692, f.length());
-
-      f.seek(0x0100);
-      audioStream = f.readBlock(4436);
-
-      f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.save();
-      CPPUNIT_ASSERT(f.hasID3v1Tag());
-      CPPUNIT_ASSERT_EQUAL((long)4820, f.length());
-
-      f.seek(0x0100);
-      CPPUNIT_ASSERT_EQUAL(audioStream, f.readBlock(4436));
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.isValid());
+    f.xiphComment(true)->setTitle("XiphComment Title");
+    f.save();
   }
-
-  void testUpdateID3v2()
   {
-    ScopedFileCopy copy("no-tags", ".flac");
-
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.ID3v2Tag(true)->setTitle("0123456789");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.ID3v2Tag()->setTitle("ABCDEFGHIJ");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT_EQUAL(String("ABCDEFGHIJ"), f.ID3v2Tag()->title());
-    }
+    FLAC::File f(copy.fileName());
+    BOOST_CHECK(f.isValid());
+    f.seek(42);
+    const ByteVector data = f.readBlock(4);
+    BOOST_CHECK_EQUAL(data, ByteVector("\x03\x00\x00\x00", 4));
   }
+}
 
-  void testEmptyID3v2()
-  {
-    ScopedFileCopy copy("no-tags", ".flac");
-
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.ID3v2Tag(true);
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-    }
-  }
-
-  void testStripTags()
-  {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.xiphComment(true)->setTitle("XiphComment Title");
-      f.ID3v1Tag(true)->setTitle("ID3v1 Title");
-      f.ID3v2Tag(true)->setTitle("ID3v2 Title");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasXiphComment());
-      CPPUNIT_ASSERT(f.hasID3v1Tag());
-      CPPUNIT_ASSERT(f.hasID3v2Tag());
-      CPPUNIT_ASSERT_EQUAL(String("XiphComment Title"), f.xiphComment()->title());
-      CPPUNIT_ASSERT_EQUAL(String("ID3v1 Title"), f.ID3v1Tag()->title());
-      CPPUNIT_ASSERT_EQUAL(String("ID3v2 Title"), f.ID3v2Tag()->title());
-      f.strip(FLAC::File::ID3v2);
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasXiphComment());
-      CPPUNIT_ASSERT(f.hasID3v1Tag());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-      CPPUNIT_ASSERT_EQUAL(String("XiphComment Title"), f.xiphComment()->title());
-      CPPUNIT_ASSERT_EQUAL(String("ID3v1 Title"), f.ID3v1Tag()->title());
-      f.strip(FLAC::File::ID3v1);
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasXiphComment());
-      CPPUNIT_ASSERT(!f.hasID3v1Tag());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-      CPPUNIT_ASSERT_EQUAL(String("XiphComment Title"), f.xiphComment()->title());
-      f.strip(FLAC::File::XiphComment);
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasXiphComment());
-      CPPUNIT_ASSERT(!f.hasID3v1Tag());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-      CPPUNIT_ASSERT(f.xiphComment()->isEmpty());
-      CPPUNIT_ASSERT_EQUAL(String("reference libFLAC 1.1.0 20030126"), f.xiphComment()->vendorID());
-    }
-  }
-
-  void testRemoveXiphField()
-  {
-    ScopedFileCopy copy("silence-44-s", ".flac");
-
-    {
-      FLAC::File f(copy.fileName().c_str());
-      f.xiphComment(true)->setTitle("XiphComment Title");
-      f.ID3v2Tag(true)->setTitle("ID3v2 Title");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT_EQUAL(String("XiphComment Title"), f.xiphComment()->title());
-      f.xiphComment()->removeFields("TITLE");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT_EQUAL(String(), f.xiphComment()->title());
-    }
-  }
-
-  void testEmptySeekTable()
-  {
-    ScopedFileCopy copy("empty-seektable", ".flac");
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.isValid());
-      f.xiphComment(true)->setTitle("XiphComment Title");
-      f.save();
-    }
-    {
-      FLAC::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.isValid());
-      f.seek(42);
-      const ByteVector data = f.readBlock(4);
-      CPPUNIT_ASSERT_EQUAL(ByteVector("\x03\x00\x00\x00", 4), data);
-    }
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestFLAC);
+BOOST_AUTO_TEST_SUITE_END()

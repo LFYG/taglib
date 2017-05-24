@@ -25,48 +25,38 @@
 
 #include <tstring.h>
 #include <tmap.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
 
-using namespace std;
 using namespace TagLib;
 
-class TestMap : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestMap)
+
+BOOST_AUTO_TEST_CASE(testInsert)
 {
-  CPPUNIT_TEST_SUITE(TestMap);
-  CPPUNIT_TEST(testInsert);
-  CPPUNIT_TEST(testDetach);
-  CPPUNIT_TEST_SUITE_END();
+  Map<String, int> m1;
+  m1.insert("foo", 3);
+  m1.insert("bar", 5);
+  BOOST_CHECK_EQUAL(m1.size(), 2);
+  BOOST_CHECK_EQUAL(m1["foo"], 3);
+  BOOST_CHECK_EQUAL(m1["bar"], 5);
+  m1.insert("foo", 7);
+  BOOST_CHECK_EQUAL(m1.size(), 2);
+  BOOST_CHECK_EQUAL(m1["foo"], 7);
+  BOOST_CHECK_EQUAL(m1["bar"], 5);
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testDetach)
+{
+  Map<String, int> m1;
+  m1.insert("alice", 5);
+  m1.insert("bob", 9);
+  m1.insert("carol", 11);
+  
+  Map<String, int> m2 = m1;
+  Map<String, int>::Iterator it = m2.find("bob");
+  (*it).second = 99;
+  BOOST_CHECK_EQUAL(m1["bob"],  9);
+  BOOST_CHECK_EQUAL(m2["bob"], 99);
+}
 
-  void testInsert()
-  {
-    Map<String, int> m1;
-    m1.insert("foo", 3);
-    m1.insert("bar", 5);
-    CPPUNIT_ASSERT_EQUAL(2U, m1.size());
-    CPPUNIT_ASSERT_EQUAL(3, m1["foo"]);
-    CPPUNIT_ASSERT_EQUAL(5, m1["bar"]);
-    m1.insert("foo", 7);
-    CPPUNIT_ASSERT_EQUAL(2U, m1.size());
-    CPPUNIT_ASSERT_EQUAL(7, m1["foo"]);
-    CPPUNIT_ASSERT_EQUAL(5, m1["bar"]);
-  }
-
-  void testDetach()
-  {
-    Map<String, int> m1;
-    m1.insert("alice", 5);
-    m1.insert("bob", 9);
-    m1.insert("carol", 11);
-
-    Map<String, int> m2 = m1;
-    Map<String, int>::Iterator it = m2.find("bob");
-    (*it).second = 99;
-    CPPUNIT_ASSERT_EQUAL(9,  m1["bob"]);
-    CPPUNIT_ASSERT_EQUAL(99, m2["bob"]);
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestMap);
+BOOST_AUTO_TEST_SUITE_END()

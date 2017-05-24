@@ -23,41 +23,28 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
-#include <tag.h>
-#include <tstringlist.h>
-#include <tbytevectorlist.h>
 #include <flacunknownmetadatablock.h>
-#include <cppunit/extensions/HelperMacros.h>
-#include "utils.h"
+#include <boost/test/unit_test.hpp>
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestFLACUnknownMetadataBlock : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestFLACUnknownMetadataBlock)
+
+BOOST_AUTO_TEST_CASE(testAccessors)
 {
-  CPPUNIT_TEST_SUITE(TestFLACUnknownMetadataBlock);
-  CPPUNIT_TEST(testAccessors);
-  CPPUNIT_TEST_SUITE_END();
+  const ByteVector data("abc\x01", 4);
+  FLAC::UnknownMetadataBlock block(42, data);
+  BOOST_CHECK_EQUAL(block.code(), 42);
+  BOOST_CHECK_EQUAL(block.data(), data);
+  BOOST_CHECK_EQUAL(block.render(), data);
 
-public:
+  const ByteVector data2("xxx", 3);
+  block.setCode(13);
+  block.setData(data2);
+  BOOST_CHECK_EQUAL(block.code(), 13);
+  BOOST_CHECK_EQUAL(block.data(), data2);
+  BOOST_CHECK_EQUAL(block.render(), data2);
+}
 
-  void testAccessors()
-  {
-    ByteVector data("abc\x01", 4);
-    FLAC::UnknownMetadataBlock block(42, data);
-    CPPUNIT_ASSERT_EQUAL(42, block.code());
-    CPPUNIT_ASSERT_EQUAL(data, block.data());
-    CPPUNIT_ASSERT_EQUAL(data, block.render());
-    ByteVector data2("xxx", 3);
-    block.setCode(13);
-    block.setData(data2);
-    CPPUNIT_ASSERT_EQUAL(13, block.code());
-    CPPUNIT_ASSERT_EQUAL(data2, block.data());
-    CPPUNIT_ASSERT_EQUAL(data2, block.render());
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestFLACUnknownMetadataBlock);
+BOOST_AUTO_TEST_SUITE_END()

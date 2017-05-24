@@ -139,9 +139,9 @@ public:
       deleteFile(m_filename);
   }
 
-  string fileName() const
+  const char *fileName() const
   {
-    return m_filename;
+    return m_filename.c_str();
   }
 
 private:

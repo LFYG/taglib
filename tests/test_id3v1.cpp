@@ -23,51 +23,37 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
-#include <tstring.h>
-#include <mpegfile.h>
 #include <id3v1tag.h>
 #include <id3v1genres.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <mpegfile.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestID3v1 : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestID3v1)
+
+BOOST_AUTO_TEST_CASE(testStripWhiteSpace)
 {
-  CPPUNIT_TEST_SUITE(TestID3v1);
-  CPPUNIT_TEST(testStripWhiteSpace);
-  CPPUNIT_TEST(testGenres);
-  CPPUNIT_TEST_SUITE_END();
-
-public:
-
-  void testStripWhiteSpace()
+  const ScopedFileCopy copy("xing", ".mp3");
   {
-    ScopedFileCopy copy("xing", ".mp3");
-    string newname = copy.fileName();
-
-    {
-      MPEG::File f(newname.c_str());
-      f.ID3v1Tag(true)->setArtist("Artist     ");
-      f.save();
-    }
-
-    {
-      MPEG::File f(newname.c_str());
-      CPPUNIT_ASSERT(f.ID3v1Tag(false));
-      CPPUNIT_ASSERT_EQUAL(String("Artist"), f.ID3v1Tag(false)->artist());
-    }
+    MPEG::File f(copy.fileName());
+    f.ID3v1Tag(true)->setArtist("Artist     ");
+    f.save();
   }
-
-  void testGenres()
+  
   {
-    CPPUNIT_ASSERT_EQUAL(String("Darkwave"), ID3v1::genre(50));
-    CPPUNIT_ASSERT_EQUAL(100, ID3v1::genreIndex("Humour"));
+    MPEG::File f(copy.fileName());
+    BOOST_CHECK(f.ID3v1Tag(false));
+    BOOST_CHECK_EQUAL(f.ID3v1Tag(false)->artist(), "Artist");
   }
+}
 
-};
+BOOST_AUTO_TEST_CASE(testGenres)
+{
+  BOOST_CHECK_EQUAL(ID3v1::genre(50), "Darkwave");
+  BOOST_CHECK_EQUAL(ID3v1::genreIndex("Humour"), 100);
+}
 
-CPPUNIT_TEST_SUITE_REGISTRATION(TestID3v1);
+BOOST_AUTO_TEST_SUITE_END()

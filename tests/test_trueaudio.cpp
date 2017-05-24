@@ -23,105 +23,90 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
-#include <id3v1tag.h>
-#include <id3v2tag.h>
-#include <tpropertymap.h>
 #include <trueaudiofile.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <id3v2tag.h>
+#include <id3v1tag.h>
+#include <tpropertymap.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestTrueAudio : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestTrueAudio)
+
+BOOST_AUTO_TEST_CASE(testReadPropertiesWithoutID3v2)
 {
-  CPPUNIT_TEST_SUITE(TestTrueAudio);
-  CPPUNIT_TEST(testReadPropertiesWithoutID3v2);
-  CPPUNIT_TEST(testReadPropertiesWithTags);
-  CPPUNIT_TEST(testStripAndProperties);
-  CPPUNIT_TEST(testRepeatedSave);
-  CPPUNIT_TEST_SUITE_END();
+  TrueAudio::File f(TEST_FILE_PATH_C("empty.tta"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 3685);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 173);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 162496);
+  BOOST_CHECK_EQUAL(f.audioProperties()->ttaVersion(), 1);
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testReadPropertiesWithTags)
+{
+  TrueAudio::File f(TEST_FILE_PATH_C("tagged.tta"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 3685);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 173);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 162496);
+  BOOST_CHECK_EQUAL(f.audioProperties()->ttaVersion(), 1);
+}
 
-  void testReadPropertiesWithoutID3v2()
+BOOST_AUTO_TEST_CASE(testStripAndProperties)
+{
+  const ScopedFileCopy copy("empty", ".tta");
   {
-    TrueAudio::File f(TEST_FILE_PATH_C("empty.tta"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(3685, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(173, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(162496U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->ttaVersion());
+    TrueAudio::File f(copy.fileName());
+    f.ID3v2Tag(true)->setTitle("ID3v2");
+    f.ID3v1Tag(true)->setTitle("ID3v1");
+    f.save();
   }
-
-  void testReadPropertiesWithTags()
   {
-    TrueAudio::File f(TEST_FILE_PATH_C("tagged.tta"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(3685, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(173, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(162496U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->ttaVersion());
+    TrueAudio::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.properties()["TITLE"].front(), "ID3v2");
+    f.strip(TrueAudio::File::ID3v2);
+    BOOST_CHECK_EQUAL(f.properties()["TITLE"].front(), "ID3v1");
+    f.strip(TrueAudio::File::ID3v1);
+    BOOST_CHECK(f.properties().isEmpty());
   }
+}
 
-  void testStripAndProperties()
+BOOST_AUTO_TEST_CASE(testRepeatedSave)
+{
+  const ScopedFileCopy copy("empty", ".tta");
   {
-    ScopedFileCopy copy("empty", ".tta");
-
-    {
-      TrueAudio::File f(copy.fileName().c_str());
-      f.ID3v2Tag(true)->setTitle("ID3v2");
-      f.ID3v1Tag(true)->setTitle("ID3v1");
-      f.save();
-    }
-    {
-      TrueAudio::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT_EQUAL(String("ID3v2"), f.properties()["TITLE"].front());
-      f.strip(TrueAudio::File::ID3v2);
-      CPPUNIT_ASSERT_EQUAL(String("ID3v1"), f.properties()["TITLE"].front());
-      f.strip(TrueAudio::File::ID3v1);
-      CPPUNIT_ASSERT(f.properties().isEmpty());
-    }
+    TrueAudio::File f(copy.fileName());
+    BOOST_CHECK(!f.hasID3v2Tag());
+    BOOST_CHECK(!f.hasID3v1Tag());
+  
+    f.ID3v2Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.save();
+  
+    f.ID3v2Tag()->setTitle("0");
+    f.save();
+  
+    f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.ID3v2Tag()->setTitle("01234 56789 ABCDE FGHIJ 01234 56789 ABCDE FGHIJ 01234 56789");
+    f.save();
   }
-
-  void testRepeatedSave()
   {
-    ScopedFileCopy copy("empty", ".tta");
-
-    {
-      TrueAudio::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-      CPPUNIT_ASSERT(!f.hasID3v1Tag());
-
-      f.ID3v2Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.save();
-
-      f.ID3v2Tag()->setTitle("0");
-      f.save();
-
-      f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.ID3v2Tag()->setTitle("01234 56789 ABCDE FGHIJ 01234 56789 ABCDE FGHIJ 01234 56789");
-      f.save();
-    }
-    {
-      TrueAudio::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasID3v2Tag());
-      CPPUNIT_ASSERT(f.hasID3v1Tag());
-    }
+    TrueAudio::File f(copy.fileName());
+    BOOST_CHECK(f.hasID3v2Tag());
+    BOOST_CHECK(f.hasID3v1Tag());
   }
+}
 
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestTrueAudio);
+BOOST_AUTO_TEST_SUITE_END()

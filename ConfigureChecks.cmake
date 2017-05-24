@@ -199,13 +199,12 @@ if(NOT ZLIB_SOURCE)
   endif()
 endif()
 
-# Determine whether CppUnit is installed.
+# Determine whether the unit test framework is installed.
 
 if(BUILD_TESTS AND NOT BUILD_SHARED_LIBS)
-  find_package(CppUnit)
-  if(NOT CppUnit_FOUND)
-    message(STATUS "CppUnit not found, disabling tests.")
+  find_package(Boost COMPONENTS unit_test_framework)
+  if(NOT Boost_UNIT_TEST_FRAMEWORK_FOUND)
+    message(STATUS "Boost Unit Test Framework not found, disabling tests.")
     set(BUILD_TESTS OFF)
   endif()
 endif()
-

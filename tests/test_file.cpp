@@ -24,131 +24,117 @@
  ***************************************************************************/
 
 #include <tfile.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
 
 using namespace TagLib;
 
-// File subclass that gives tests access to filesystem operations
-class PlainFile : public File {
-public:
-  PlainFile(FileName name) : File(name) { }
-  Tag *tag() const { return NULL; }
-  AudioProperties *audioProperties() const { return NULL; }
-  bool save(){ return false; }
-  void truncate(long length) { File::truncate(length); }
-};
-
-class TestFile : public CppUnit::TestFixture
+namespace 
 {
-  CPPUNIT_TEST_SUITE(TestFile);
-  CPPUNIT_TEST(testFindInSmallFile);
-  CPPUNIT_TEST(testRFindInSmallFile);
-  CPPUNIT_TEST(testSeek);
-  CPPUNIT_TEST(testTruncate);
-  CPPUNIT_TEST_SUITE_END();
+  // File subclass that gives tests access to filesystem operations
+  class PlainFile : public File {
+  public:
+    PlainFile(FileName name) : File(name) { }
+    Tag *tag() const { return NULL; }
+    AudioProperties *audioProperties() const { return NULL; }
+    bool save() { return false; }
+    void truncate(long length) { File::truncate(length); }
+  };
+}
 
-public:
+BOOST_AUTO_TEST_SUITE(TestFile)
 
-  void testFindInSmallFile()
+BOOST_AUTO_TEST_CASE(testFindInSmallFile)
+{
+  const ScopedFileCopy copy("empty", ".ogg");
   {
-    ScopedFileCopy copy("empty", ".ogg");
-    std::string name = copy.fileName();
-    {
-      PlainFile file(name.c_str());
-      file.seek(0);
-      file.writeBlock(ByteVector("0123456239", 10));
-      file.truncate(10);
-    }
-    {
-      PlainFile file(name.c_str());
-      CPPUNIT_ASSERT_EQUAL(10l, file.length());
-
-      CPPUNIT_ASSERT_EQUAL(2l, file.find(ByteVector("23", 2)));
-      CPPUNIT_ASSERT_EQUAL(2l, file.find(ByteVector("23", 2), 2));
-      CPPUNIT_ASSERT_EQUAL(7l, file.find(ByteVector("23", 2), 3));
-
-      file.seek(0);
-      const ByteVector v = file.readBlock(file.length());
-      CPPUNIT_ASSERT_EQUAL((unsigned int)10, v.size());
-
-      CPPUNIT_ASSERT_EQUAL((long)v.find("23"),    file.find("23"));
-      CPPUNIT_ASSERT_EQUAL((long)v.find("23", 2), file.find("23", 2));
-      CPPUNIT_ASSERT_EQUAL((long)v.find("23", 3), file.find("23", 3));
-    }
+    PlainFile file(copy.fileName());
+    file.seek(0);
+    file.writeBlock(ByteVector("0123456239", 10));
+    file.truncate(10);
   }
-
-  void testRFindInSmallFile()
   {
-    ScopedFileCopy copy("empty", ".ogg");
-    std::string name = copy.fileName();
-    {
-      PlainFile file(name.c_str());
-      file.seek(0);
-      file.writeBlock(ByteVector("0123456239", 10));
-      file.truncate(10);
-    }
-    {
-      PlainFile file(name.c_str());
-      CPPUNIT_ASSERT_EQUAL(10l, file.length());
-
-      CPPUNIT_ASSERT_EQUAL(7l, file.rfind(ByteVector("23", 2)));
-      CPPUNIT_ASSERT_EQUAL(7l, file.rfind(ByteVector("23", 2), 7));
-      CPPUNIT_ASSERT_EQUAL(2l, file.rfind(ByteVector("23", 2), 6));
-
-      file.seek(0);
-      const ByteVector v = file.readBlock(file.length());
-      CPPUNIT_ASSERT_EQUAL((unsigned int)10, v.size());
-
-      CPPUNIT_ASSERT_EQUAL((long)v.rfind("23"),    file.rfind("23"));
-      CPPUNIT_ASSERT_EQUAL((long)v.rfind("23", 7), file.rfind("23", 7));
-      CPPUNIT_ASSERT_EQUAL((long)v.rfind("23", 6), file.rfind("23", 6));
-    }
+    PlainFile file(copy.fileName());
+    BOOST_CHECK_EQUAL(file.length(), 10);
+  
+    BOOST_CHECK_EQUAL(file.find(ByteVector("23", 2)), 2);
+    BOOST_CHECK_EQUAL(file.find(ByteVector("23", 2), 2), 2);
+    BOOST_CHECK_EQUAL(file.find(ByteVector("23", 2), 3), 7);
+  
+    file.seek(0);
+    const ByteVector v = file.readBlock(file.length());
+    BOOST_CHECK_EQUAL(v.size(), 10);
+  
+    BOOST_CHECK_EQUAL(v.find("23"),    file.find("23"));
+    BOOST_CHECK_EQUAL(v.find("23", 2), file.find("23", 2));
+    BOOST_CHECK_EQUAL(v.find("23", 3), file.find("23", 3));
   }
+}
 
-  void testSeek()
+BOOST_AUTO_TEST_CASE(testRFindInSmallFile)
+{
+  const ScopedFileCopy copy("empty", ".ogg");
   {
-    ScopedFileCopy copy("empty", ".ogg");
-    std::string name = copy.fileName();
-
-    PlainFile f(name.c_str());
-    CPPUNIT_ASSERT_EQUAL((long)0, f.tell());
-    CPPUNIT_ASSERT_EQUAL((long)4328, f.length());
-
-    f.seek(100, File::Beginning);
-    CPPUNIT_ASSERT_EQUAL((long)100, f.tell());
-    f.seek(100, File::Current);
-    CPPUNIT_ASSERT_EQUAL((long)200, f.tell());
-    f.seek(-300, File::Current);
-    CPPUNIT_ASSERT_EQUAL((long)200, f.tell());
-
-    f.seek(-100, File::End);
-    CPPUNIT_ASSERT_EQUAL((long)4228, f.tell());
-    f.seek(-100, File::Current);
-    CPPUNIT_ASSERT_EQUAL((long)4128, f.tell());
-    f.seek(300, File::Current);
-    CPPUNIT_ASSERT_EQUAL((long)4428, f.tell());
+    PlainFile file(copy.fileName());
+    file.seek(0);
+    file.writeBlock(ByteVector("0123456239", 10));
+    file.truncate(10);
   }
-
-  void testTruncate()
   {
-    ScopedFileCopy copy("empty", ".ogg");
-    std::string name = copy.fileName();
-
-    {
-      PlainFile f(name.c_str());
-      CPPUNIT_ASSERT_EQUAL(4328L, f.length());
-
-      f.truncate(2000);
-      CPPUNIT_ASSERT_EQUAL(2000L, f.length());
-    }
-    {
-      PlainFile f(name.c_str());
-      CPPUNIT_ASSERT_EQUAL(2000L, f.length());
-    }
+    PlainFile file(copy.fileName());
+    BOOST_CHECK_EQUAL(file.length(), 10);
+  
+    BOOST_CHECK_EQUAL(file.rfind(ByteVector("23", 2)), 7);
+    BOOST_CHECK_EQUAL(file.rfind(ByteVector("23", 2), 7), 7);
+    BOOST_CHECK_EQUAL(file.rfind(ByteVector("23", 2), 6), 2);
+  
+    file.seek(0);
+    const ByteVector v = file.readBlock(file.length());
+    BOOST_CHECK_EQUAL(v.size(), (unsigned int)10);
+  
+    BOOST_CHECK_EQUAL(v.rfind("23"),    file.rfind("23"));
+    BOOST_CHECK_EQUAL(v.rfind("23", 7), file.rfind("23", 7));
+    BOOST_CHECK_EQUAL(v.rfind("23", 6), file.rfind("23", 6));
   }
+}
 
-};
+BOOST_AUTO_TEST_CASE(testSeek)
+{
+  const ScopedFileCopy copy("empty", ".ogg");
 
-CPPUNIT_TEST_SUITE_REGISTRATION(TestFile);
+  PlainFile f(copy.fileName());
+  BOOST_CHECK_EQUAL(f.tell(), 0);
+  BOOST_CHECK_EQUAL(f.length(), 4328);
+  
+  f.seek(100, File::Beginning);
+  BOOST_CHECK_EQUAL(f.tell(), 100);
+  f.seek(100, File::Current);
+  BOOST_CHECK_EQUAL(f.tell(), 200);
+  f.seek(-300, File::Current);
+  BOOST_CHECK_EQUAL(f.tell(), 200);
+  
+  f.seek(-100, File::End);
+  BOOST_CHECK_EQUAL(f.tell(), 4228);
+  f.seek(-100, File::Current);
+  BOOST_CHECK_EQUAL(f.tell(), 4128);
+  f.seek(300, File::Current);
+  BOOST_CHECK_EQUAL(f.tell(), 4428);
+}
 
+BOOST_AUTO_TEST_CASE(testTruncate)
+{
+  const ScopedFileCopy copy("empty", ".ogg");
+  {
+    PlainFile f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.length(), 4328);
+
+    f.truncate(2000);
+    BOOST_CHECK_EQUAL(f.length(), 2000);
+  }
+  {
+    PlainFile f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.length(), 2000);
+  }
+}
+
+BOOST_AUTO_TEST_SUITE_END()

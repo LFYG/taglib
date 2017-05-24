@@ -23,132 +23,114 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
+#include <wavpackfile.h>
 #include <apetag.h>
 #include <id3v1tag.h>
-#include <tbytevectorlist.h>
 #include <tpropertymap.h>
-#include <wavpackfile.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestWavPack : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestWavPack)
+
+BOOST_AUTO_TEST_CASE(testNoLengthProperties)
 {
-  CPPUNIT_TEST_SUITE(TestWavPack);
-  CPPUNIT_TEST(testNoLengthProperties);
-  CPPUNIT_TEST(testMultiChannelProperties);
-  CPPUNIT_TEST(testTaggedProperties);
-  CPPUNIT_TEST(testFuzzedFile);
-  CPPUNIT_TEST(testStripAndProperties);
-  CPPUNIT_TEST(testRepeatedSave);
-  CPPUNIT_TEST_SUITE_END();
+  WavPack::File f(TEST_FILE_PATH_C("no_length.wv"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 3705);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 1);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->isLossless(), true);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 163392);
+  BOOST_CHECK_EQUAL(f.audioProperties()->version(), 1031);
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testMultiChannelProperties)
+{
+  WavPack::File f(TEST_FILE_PATH_C("four_channels.wv"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 3833);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 112);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 4);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->isLossless(), false);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 169031);
+  BOOST_CHECK_EQUAL(f.audioProperties()->version(), 1031);
+}
 
-  void testNoLengthProperties()
+BOOST_AUTO_TEST_CASE(testTaggedProperties)
+{
+  WavPack::File f(TEST_FILE_PATH_C("tagged.wv"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 3);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 3550);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 172);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 2);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->isLossless(), false);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 156556);
+  BOOST_CHECK_EQUAL(f.audioProperties()->version(), 1031);
+}
+
+BOOST_AUTO_TEST_CASE(testFuzzedFile)
+{
+  WavPack::File f(TEST_FILE_PATH_C("infloop.wv"));
+  BOOST_CHECK(f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testStripAndProperties)
+{
+  const ScopedFileCopy copy("click", ".wv");
   {
-    WavPack::File f(TEST_FILE_PATH_C("no_length.wv"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(3705, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(true, f.audioProperties()->isLossless());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(163392U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(1031, f.audioProperties()->version());
+    WavPack::File f(copy.fileName());
+    f.APETag(true)->setTitle("APE");
+    f.ID3v1Tag(true)->setTitle("ID3v1");
+    f.save();
   }
-
-  void testMultiChannelProperties()
   {
-    WavPack::File f(TEST_FILE_PATH_C("four_channels.wv"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(3833, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(112, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(4, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(false, f.audioProperties()->isLossless());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(169031U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(1031, f.audioProperties()->version());
+    WavPack::File f(copy.fileName());
+    BOOST_CHECK_EQUAL(f.properties()["TITLE"].front(), "APE");
+    f.strip(WavPack::File::APE);
+    BOOST_CHECK_EQUAL(f.properties()["TITLE"].front(), "ID3v1");
+    f.strip(WavPack::File::ID3v1);
+    BOOST_CHECK(f.properties().isEmpty());
   }
+}
 
-  void testTaggedProperties()
+BOOST_AUTO_TEST_CASE(testRepeatedSave)
+{
+  const ScopedFileCopy copy("click", ".wv");
   {
-    WavPack::File f(TEST_FILE_PATH_C("tagged.wv"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(3, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(3550, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(172, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(2, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(false, f.audioProperties()->isLossless());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(156556U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(1031, f.audioProperties()->version());
+    WavPack::File f(copy.fileName());
+    BOOST_CHECK(!f.hasAPETag());
+    BOOST_CHECK(!f.hasID3v1Tag());
+  
+    f.APETag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.save();
+  
+    f.APETag()->setTitle("0");
+    f.save();
+  
+    f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
+    f.APETag()->setTitle("01234 56789 ABCDE FGHIJ 01234 56789 ABCDE FGHIJ 01234 56789");
+    f.save();
   }
-
-  void testFuzzedFile()
   {
-    WavPack::File f(TEST_FILE_PATH_C("infloop.wv"));
-    CPPUNIT_ASSERT(f.isValid());
+    WavPack::File f(copy.fileName());
+    BOOST_CHECK(f.hasAPETag());
+    BOOST_CHECK(f.hasID3v1Tag());
   }
+}
 
-  void testStripAndProperties()
-  {
-    ScopedFileCopy copy("click", ".wv");
-
-    {
-      WavPack::File f(copy.fileName().c_str());
-      f.APETag(true)->setTitle("APE");
-      f.ID3v1Tag(true)->setTitle("ID3v1");
-      f.save();
-    }
-    {
-      WavPack::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT_EQUAL(String("APE"), f.properties()["TITLE"].front());
-      f.strip(WavPack::File::APE);
-      CPPUNIT_ASSERT_EQUAL(String("ID3v1"), f.properties()["TITLE"].front());
-      f.strip(WavPack::File::ID3v1);
-      CPPUNIT_ASSERT(f.properties().isEmpty());
-    }
-  }
-
-  void testRepeatedSave()
-  {
-    ScopedFileCopy copy("click", ".wv");
-
-    {
-      WavPack::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(!f.hasAPETag());
-      CPPUNIT_ASSERT(!f.hasID3v1Tag());
-
-      f.APETag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.save();
-
-      f.APETag()->setTitle("0");
-      f.save();
-
-      f.ID3v1Tag(true)->setTitle("01234 56789 ABCDE FGHIJ");
-      f.APETag()->setTitle("01234 56789 ABCDE FGHIJ 01234 56789 ABCDE FGHIJ 01234 56789");
-      f.save();
-    }
-    {
-      WavPack::File f(copy.fileName().c_str());
-      CPPUNIT_ASSERT(f.hasAPETag());
-      CPPUNIT_ASSERT(f.hasID3v1Tag());
-    }
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestWavPack);
+BOOST_AUTO_TEST_SUITE_END()

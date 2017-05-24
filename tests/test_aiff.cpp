@@ -23,120 +23,101 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
-#include <tag.h>
-#include <tbytevectorlist.h>
 #include <aifffile.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
 #include "utils.h"
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestAIFF : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestAIFF)
+
+BOOST_AUTO_TEST_CASE(testAiffProperties)
 {
-  CPPUNIT_TEST_SUITE(TestAIFF);
-  CPPUNIT_TEST(testAiffProperties);
-  CPPUNIT_TEST(testAiffCProperties);
-  CPPUNIT_TEST(testSaveID3v2);
-  CPPUNIT_TEST(testDuplicateID3v2);
-  CPPUNIT_TEST(testFuzzedFile1);
-  CPPUNIT_TEST(testFuzzedFile2);
-  CPPUNIT_TEST_SUITE_END();
+  RIFF::AIFF::File f(TEST_FILE_PATH_C("empty.aiff"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 67);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 706);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 1);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleWidth(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 2941);
+  BOOST_CHECK(!f.audioProperties()->isAiffC());
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testAiffCProperties)
+{
+  RIFF::AIFF::File f(TEST_FILE_PATH_C("alaw.aifc"));
+  BOOST_CHECK(f.audioProperties());
+  BOOST_CHECK_EQUAL(f.audioProperties()->length(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInSeconds(), 0);
+  BOOST_CHECK_EQUAL(f.audioProperties()->lengthInMilliseconds(), 37);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitrate(), 355);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleRate(), 44100);
+  BOOST_CHECK_EQUAL(f.audioProperties()->channels(), 1);
+  BOOST_CHECK_EQUAL(f.audioProperties()->bitsPerSample(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleWidth(), 16);
+  BOOST_CHECK_EQUAL(f.audioProperties()->sampleFrames(), 1622);
+  BOOST_CHECK(f.audioProperties()->isAiffC());
+  BOOST_CHECK_EQUAL(f.audioProperties()->compressionType(), "ALAW");
+  BOOST_CHECK_EQUAL(f.audioProperties()->compressionName(), "SGI CCITT G.711 A-law");
+}
 
-  void testAiffProperties()
+BOOST_AUTO_TEST_CASE(testSaveID3v2)
+{
+  const ScopedFileCopy copy("empty", ".aiff");
   {
-    RIFF::AIFF::File f(TEST_FILE_PATH_C("empty.aiff"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(67, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(706, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->sampleWidth());
-    CPPUNIT_ASSERT_EQUAL(2941U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(false, f.audioProperties()->isAiffC());
-  }
-
-  void testAiffCProperties()
-  {
-    RIFF::AIFF::File f(TEST_FILE_PATH_C("alaw.aifc"));
-    CPPUNIT_ASSERT(f.audioProperties());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->length());
-    CPPUNIT_ASSERT_EQUAL(0, f.audioProperties()->lengthInSeconds());
-    CPPUNIT_ASSERT_EQUAL(37, f.audioProperties()->lengthInMilliseconds());
-    CPPUNIT_ASSERT_EQUAL(355, f.audioProperties()->bitrate());
-    CPPUNIT_ASSERT_EQUAL(44100, f.audioProperties()->sampleRate());
-    CPPUNIT_ASSERT_EQUAL(1, f.audioProperties()->channels());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->bitsPerSample());
-    CPPUNIT_ASSERT_EQUAL(16, f.audioProperties()->sampleWidth());
-    CPPUNIT_ASSERT_EQUAL(1622U, f.audioProperties()->sampleFrames());
-    CPPUNIT_ASSERT_EQUAL(true, f.audioProperties()->isAiffC());
-    CPPUNIT_ASSERT_EQUAL(ByteVector("ALAW"), f.audioProperties()->compressionType());
-    CPPUNIT_ASSERT_EQUAL(String("SGI CCITT G.711 A-law"), f.audioProperties()->compressionName());
-  }
-
-  void testSaveID3v2()
-  {
-    ScopedFileCopy copy("empty", ".aiff");
-    string newname = copy.fileName();
-
-    {
-      RIFF::AIFF::File f(newname.c_str());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-
-      f.tag()->setTitle(L"TitleXXX");
-      f.save();
-      CPPUNIT_ASSERT(f.hasID3v2Tag());
-    }
-    {
-      RIFF::AIFF::File f(newname.c_str());
-      CPPUNIT_ASSERT(f.hasID3v2Tag());
-      CPPUNIT_ASSERT_EQUAL(String(L"TitleXXX"), f.tag()->title());
-
-      f.tag()->setTitle("");
-      f.save();
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-    }
-    {
-      RIFF::AIFF::File f(newname.c_str());
-      CPPUNIT_ASSERT(!f.hasID3v2Tag());
-    }
-  }
-
-  void testDuplicateID3v2()
-  {
-    ScopedFileCopy copy("duplicate_id3v2", ".aiff");
-
-    // duplicate_id3v2.aiff has duplicate ID3v2 tag chunks.
-    // title() returns "Title2" if can't skip the second tag.
-
-    RIFF::AIFF::File f(copy.fileName().c_str());
-    CPPUNIT_ASSERT(f.hasID3v2Tag());
-    CPPUNIT_ASSERT_EQUAL(String("Title1"), f.tag()->title());
-
+    RIFF::AIFF::File f(copy.fileName());
+    BOOST_CHECK(!f.hasID3v2Tag());
+  
+    f.tag()->setTitle(L"TitleXXX");
     f.save();
-    CPPUNIT_ASSERT_EQUAL(7030L, f.length());
-    CPPUNIT_ASSERT_EQUAL(-1L, f.find("Title2"));
+    BOOST_CHECK(f.hasID3v2Tag());
   }
-
-  void testFuzzedFile1()
   {
-    RIFF::AIFF::File f(TEST_FILE_PATH_C("segfault.aif"));
-    CPPUNIT_ASSERT(!f.isValid());
+    RIFF::AIFF::File f(copy.fileName());
+    BOOST_CHECK(f.hasID3v2Tag());
+    BOOST_CHECK_EQUAL(f.tag()->title(), L"TitleXXX");
+  
+    f.tag()->setTitle("");
+    f.save();
+    BOOST_CHECK(!f.hasID3v2Tag());
   }
-
-  void testFuzzedFile2()
   {
-    RIFF::AIFF::File f(TEST_FILE_PATH_C("excessive_alloc.aif"));
-    CPPUNIT_ASSERT(!f.isValid());
+    RIFF::AIFF::File f(copy.fileName());
+    BOOST_CHECK(!f.hasID3v2Tag());
   }
+}
 
-};
+BOOST_AUTO_TEST_CASE(testDuplicateID3v2)
+{
+  const ScopedFileCopy copy("duplicate_id3v2", ".aiff");
+  
+  // duplicate_id3v2.aiff has duplicate ID3v2 tag chunks.
+  // title() returns "Title2" if can't skip the second tag.
+  
+  RIFF::AIFF::File f(copy.fileName());
+  BOOST_CHECK(f.hasID3v2Tag());
+  BOOST_CHECK_EQUAL(f.tag()->title(), "Title1");
+  
+  f.save();
+  BOOST_CHECK_EQUAL(f.length(), 7030);
+  BOOST_CHECK_EQUAL(f.find("Title2"), -1);
+}
 
-CPPUNIT_TEST_SUITE_REGISTRATION(TestAIFF);
+BOOST_AUTO_TEST_CASE(testFuzzedFile1)
+{
+  RIFF::AIFF::File f(TEST_FILE_PATH_C("segfault.aif"));
+  BOOST_CHECK(!f.isValid());
+}
+
+BOOST_AUTO_TEST_CASE(testFuzzedFile2)
+{
+  RIFF::AIFF::File f(TEST_FILE_PATH_C("excessive_alloc.aif"));
+  BOOST_CHECK(!f.isValid());
+}
+
+BOOST_AUTO_TEST_SUITE_END()

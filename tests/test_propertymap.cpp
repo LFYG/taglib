@@ -24,78 +24,68 @@
  ***************************************************************************/
 
 #include <tpropertymap.h>
-#include <tag.h>
 #include <id3v1tag.h>
-#include <cppunit/extensions/HelperMacros.h>
-#include "utils.h"
+#include <boost/test/unit_test.hpp>
+#include "loghelpers.h"
 
 using namespace TagLib;
 
-class TestPropertyMap : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestPropertyMap)
+
+BOOST_AUTO_TEST_CASE(testInvalidKeys)
 {
-  CPPUNIT_TEST_SUITE(TestPropertyMap);
-  CPPUNIT_TEST(testInvalidKeys);
-  CPPUNIT_TEST(testGetSet);
-  CPPUNIT_TEST_SUITE_END();
+  PropertyMap map1;
+  BOOST_CHECK(map1.isEmpty());
+  map1[L"\x00c4\x00d6\x00dc"].append("test");
+  BOOST_CHECK_EQUAL(map1.size(), 1);
+  
+  PropertyMap map2;
+  map2[L"\x00c4\x00d6\x00dc"].append("test");
+  BOOST_CHECK(map1 == map2);
+  BOOST_CHECK(map1.contains(map2));
+  
+  map2["ARTIST"] = String("Test Artist");
+  BOOST_CHECK(map1 != map2);
+  BOOST_CHECK(map2.contains(map1));
+  
+  map2[L"\x00c4\x00d6\x00dc"].append("test 2");
+  BOOST_CHECK(!map2.contains(map1));
+}
 
-public:
-  void testInvalidKeys()
+BOOST_AUTO_TEST_CASE(testGetSet)
+{
+  ID3v1::Tag tag;
+  
+  tag.setTitle("Test Title");
+  tag.setArtist("Test Artist");
+  tag.setAlbum("Test Album");
+  tag.setYear(2015);
+  tag.setTrack(10);
+  
   {
-    PropertyMap map1;
-    CPPUNIT_ASSERT(map1.isEmpty());
-    map1[L"\x00c4\x00d6\x00dc"].append("test");
-    CPPUNIT_ASSERT_EQUAL(map1.size(), 1u);
-
-    PropertyMap map2;
-    map2[L"\x00c4\x00d6\x00dc"].append("test");
-    CPPUNIT_ASSERT(map1 == map2);
-    CPPUNIT_ASSERT(map1.contains(map2));
-
-    map2["ARTIST"] = String("Test Artist");
-    CPPUNIT_ASSERT(map1 != map2);
-    CPPUNIT_ASSERT(map2.contains(map1));
-
-    map2[L"\x00c4\x00d6\x00dc"].append("test 2");
-    CPPUNIT_ASSERT(!map2.contains(map1));
-
+    PropertyMap prop = tag.properties();
+    BOOST_CHECK_EQUAL(prop["TITLE"      ].front(), "Test Title");
+    BOOST_CHECK_EQUAL(prop["ARTIST"     ].front(), "Test Artist");
+    BOOST_CHECK_EQUAL(prop["ALBUM"      ].front(), "Test Album");
+    BOOST_CHECK_EQUAL(prop["DATE"       ].front(), "2015");
+    BOOST_CHECK_EQUAL(prop["TRACKNUMBER"].front(), "10");
+  
+    prop["TITLE"      ].front() = "Test Title 2";
+    prop["ARTIST"     ].front() = "Test Artist 2";
+    prop["TRACKNUMBER"].front() = "5";
+  
+    tag.setProperties(prop);
   }
+  
+  BOOST_CHECK_EQUAL(tag.title(), "Test Title 2");
+  BOOST_CHECK_EQUAL(tag.artist(), "Test Artist 2");
+  BOOST_CHECK_EQUAL(tag.track(), 5);
+  
+  tag.setProperties(PropertyMap());
+  
+  BOOST_CHECK_EQUAL(tag.title(), "");
+  BOOST_CHECK_EQUAL(tag.artist(), "");
+  BOOST_CHECK_EQUAL(tag.track(), 0);
+}
 
-  void testGetSet()
-  {
-    ID3v1::Tag tag;
-
-    tag.setTitle("Test Title");
-    tag.setArtist("Test Artist");
-    tag.setAlbum("Test Album");
-    tag.setYear(2015);
-    tag.setTrack(10);
-
-    {
-      PropertyMap prop = tag.properties();
-      CPPUNIT_ASSERT_EQUAL(String("Test Title"),  prop["TITLE"      ].front());
-      CPPUNIT_ASSERT_EQUAL(String("Test Artist"), prop["ARTIST"     ].front());
-      CPPUNIT_ASSERT_EQUAL(String("Test Album"),  prop["ALBUM"      ].front());
-      CPPUNIT_ASSERT_EQUAL(String("2015"),        prop["DATE"       ].front());
-      CPPUNIT_ASSERT_EQUAL(String("10"),          prop["TRACKNUMBER"].front());
-
-      prop["TITLE"      ].front() = "Test Title 2";
-      prop["ARTIST"     ].front() = "Test Artist 2";
-      prop["TRACKNUMBER"].front() = "5";
-
-      tag.setProperties(prop);
-    }
-
-    CPPUNIT_ASSERT_EQUAL(String("Test Title 2"),  tag.title());
-    CPPUNIT_ASSERT_EQUAL(String("Test Artist 2"), tag.artist());
-    CPPUNIT_ASSERT_EQUAL(5U, tag.track());
-
-    tag.setProperties(PropertyMap());
-
-    CPPUNIT_ASSERT_EQUAL(String(""), tag.title());
-    CPPUNIT_ASSERT_EQUAL(String(""), tag.artist());
-    CPPUNIT_ASSERT_EQUAL(0U, tag.track());
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestPropertyMap);
+BOOST_AUTO_TEST_SUITE_END()

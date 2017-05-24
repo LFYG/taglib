@@ -25,39 +25,28 @@
 
 #include <tbytevector.h>
 #include <tbytevectorlist.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestByteVectorList : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestByteVectorList)
+
+BOOST_AUTO_TEST_CASE(testSplitSingleChar)
 {
-  CPPUNIT_TEST_SUITE(TestByteVectorList);
-  CPPUNIT_TEST(testSplitSingleChar);
-  CPPUNIT_TEST(testSplitSingleChar_2);
-  CPPUNIT_TEST_SUITE_END();
+  const ByteVector v("a b");
+  const ByteVectorList l = ByteVectorList::split(v, " ");
+  BOOST_CHECK_EQUAL(l.size(), 2);
+  BOOST_CHECK_EQUAL(l[0], "a");
+  BOOST_CHECK_EQUAL(l[1], "b");
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testSplitSingleChar_2)
+{
+  const ByteVector v("a");
+  const ByteVectorList l = ByteVectorList::split(v, " ");
+  BOOST_CHECK_EQUAL(l.size(), 1);
+  BOOST_CHECK_EQUAL(l[0], "a");
+}
 
-  void testSplitSingleChar()
-  {
-    ByteVector v("a b");
-
-    ByteVectorList l = ByteVectorList::split(v, " ");
-    CPPUNIT_ASSERT_EQUAL((unsigned int)2, l.size());
-    CPPUNIT_ASSERT_EQUAL(ByteVector("a"), l[0]);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("b"), l[1]);
-  }
-
-  void testSplitSingleChar_2()
-  {
-    ByteVector v("a");
-
-    ByteVectorList l = ByteVectorList::split(v, " ");
-    CPPUNIT_ASSERT_EQUAL((unsigned int)1, l.size());
-    CPPUNIT_ASSERT_EQUAL(ByteVector("a"), l[0]);
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestByteVectorList);
+BOOST_AUTO_TEST_SUITE_END()

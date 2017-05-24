@@ -24,108 +24,81 @@
  ***************************************************************************/
 
 #include <tbytevectorstream.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestByteVectorStream : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestByteVectorStream)
+
+BOOST_AUTO_TEST_CASE(testInitialData)
 {
-  CPPUNIT_TEST_SUITE(TestByteVectorStream);
-  CPPUNIT_TEST(testInitialData);
-  CPPUNIT_TEST(testWriteBlock);
-  CPPUNIT_TEST(testWriteBlockResize);
-  CPPUNIT_TEST(testReadBlock);
-  CPPUNIT_TEST(testRemoveBlock);
-  CPPUNIT_TEST(testInsert);
-  CPPUNIT_TEST(testSeekEnd);
-  CPPUNIT_TEST_SUITE_END();
+  ByteVectorStream stream("abcd");
+  BOOST_CHECK_EQUAL(*stream.data(), "abcd");
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testWriteBlock)
+{
+  ByteVectorStream stream("abcd");
+  stream.seek(1);
+  stream.writeBlock("xx");
+  BOOST_CHECK_EQUAL(*stream.data(), "axxd");
+}
 
-  void testInitialData()
-  {
-    ByteVector v("abcd");
-    ByteVectorStream stream(v);
+BOOST_AUTO_TEST_CASE(testWriteBlockResize)
+{
+  ByteVectorStream stream("abcd");
+  stream.seek(3);
+  stream.writeBlock("xx");
+  BOOST_CHECK_EQUAL(*stream.data(), "abcxx");
+  stream.seek(5);
+  stream.writeBlock("yy");
+  BOOST_CHECK_EQUAL(*stream.data(), "abcxxyy");
+}
 
-    CPPUNIT_ASSERT_EQUAL(ByteVector("abcd"), *stream.data());
-  }
+BOOST_AUTO_TEST_CASE(testReadBlock)
+{
+  ByteVectorStream stream("abcd");
+  BOOST_CHECK_EQUAL(stream.readBlock(1), "a");
+  BOOST_CHECK_EQUAL(stream.readBlock(2), "bc");
+  BOOST_CHECK_EQUAL(stream.readBlock(3), "d");
+  BOOST_CHECK_EQUAL(stream.readBlock(3), "");
+}
 
-  void testWriteBlock()
-  {
-    ByteVector v("abcd");
-    ByteVectorStream stream(v);
+BOOST_AUTO_TEST_CASE(testRemoveBlock)
+{
+  ByteVectorStream stream("abcd");
+  stream.removeBlock(1, 1);
+  BOOST_CHECK_EQUAL(*stream.data(), "acd");
+  stream.removeBlock(0, 2);
+  BOOST_CHECK_EQUAL(*stream.data(), "d");
+  stream.removeBlock(0, 2);
+  BOOST_CHECK_EQUAL(*stream.data(), "");
+}
 
-    stream.seek(1);
-    stream.writeBlock(ByteVector("xx"));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("axxd"), *stream.data());
-  }
+BOOST_AUTO_TEST_CASE(testInsert)
+{
+  ByteVectorStream stream("abcd");
+  stream.insert("xx", 1, 1);
+  BOOST_CHECK_EQUAL(*stream.data(), "axxcd");
+  stream.insert("yy", 0, 2);
+  BOOST_CHECK_EQUAL(*stream.data(), "yyxcd");
+  stream.insert("foa", 3, 2);
+  BOOST_CHECK_EQUAL(*stream.data(), "yyxfoa");
+  stream.insert("123", 3, 0);
+  BOOST_CHECK_EQUAL(*stream.data(), "yyx123foa");
+}
 
-  void testWriteBlockResize()
-  {
-    ByteVector v("abcd");
-    ByteVectorStream stream(v);
+BOOST_AUTO_TEST_CASE(testSeekEnd)
+{
+  ByteVectorStream stream("abcdefghijklmnopqrstuvwxyz");
+  BOOST_CHECK_EQUAL(stream.length(), 26);
+  
+  stream.seek(-4, IOStream::End);
+  BOOST_CHECK_EQUAL(stream.readBlock(1), "w");
+  
+  stream.seek(-25, IOStream::End);
+  BOOST_CHECK_EQUAL(stream.readBlock(1), "b");
+}
 
-    stream.seek(3);
-    stream.writeBlock(ByteVector("xx"));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("abcxx"), *stream.data());
-    stream.seek(5);
-    stream.writeBlock(ByteVector("yy"));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("abcxxyy"), *stream.data());
-  }
-
-  void testReadBlock()
-  {
-    ByteVector v("abcd");
-    ByteVectorStream stream(v);
-
-    CPPUNIT_ASSERT_EQUAL(ByteVector("a"), stream.readBlock(1));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("bc"), stream.readBlock(2));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("d"), stream.readBlock(3));
-    CPPUNIT_ASSERT_EQUAL(ByteVector(""), stream.readBlock(3));
-  }
-
-  void testRemoveBlock()
-  {
-    ByteVector v("abcd");
-    ByteVectorStream stream(v);
-
-    stream.removeBlock(1, 1);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("acd"), *stream.data());
-    stream.removeBlock(0, 2);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("d"), *stream.data());
-    stream.removeBlock(0, 2);
-    CPPUNIT_ASSERT_EQUAL(ByteVector(""), *stream.data());
-  }
-
-  void testInsert()
-  {
-    ByteVector v("abcd");
-    ByteVectorStream stream(v);
-
-    stream.insert(ByteVector("xx"), 1, 1);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("axxcd"), *stream.data());
-    stream.insert(ByteVector("yy"), 0, 2);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("yyxcd"), *stream.data());
-    stream.insert(ByteVector("foa"), 3, 2);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("yyxfoa"), *stream.data());
-    stream.insert(ByteVector("123"), 3, 0);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("yyx123foa"), *stream.data());
-  }
-
-  void testSeekEnd()
-  {
-    ByteVector v("abcdefghijklmnopqrstuvwxyz");
-    ByteVectorStream stream(v);
-    CPPUNIT_ASSERT_EQUAL(26L, stream.length());
-
-    stream.seek(-4, IOStream::End);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("w"), stream.readBlock(1));
-
-    stream.seek(-25, IOStream::End);
-    CPPUNIT_ASSERT_EQUAL(ByteVector("b"), stream.readBlock(1));
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestByteVectorStream);
+BOOST_AUTO_TEST_SUITE_END()

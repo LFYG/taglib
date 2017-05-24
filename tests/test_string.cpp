@@ -24,349 +24,318 @@
  ***************************************************************************/
 
 #include <tstring.h>
-#include <string.h>
-#include <cppunit/extensions/HelperMacros.h>
+#include <boost/test/unit_test.hpp>
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestString : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestString)
+
+BOOST_AUTO_TEST_CASE(testString)
 {
-  CPPUNIT_TEST_SUITE(TestString);
-  CPPUNIT_TEST(testString);
-  CPPUNIT_TEST(testRfind);
-  CPPUNIT_TEST(testUTF16Encode);
-  CPPUNIT_TEST(testUTF16Decode);
-  CPPUNIT_TEST(testUTF16DecodeInvalidBOM);
-  CPPUNIT_TEST(testUTF16DecodeEmptyWithBOM);
-  CPPUNIT_TEST(testSurrogatePair);
-  CPPUNIT_TEST(testAppendCharDetach);
-  CPPUNIT_TEST(testAppendStringDetach);
-  CPPUNIT_TEST(testToInt);
-  CPPUNIT_TEST(testFromInt);
-  CPPUNIT_TEST(testSubstr);
-  CPPUNIT_TEST(testNewline);
-  CPPUNIT_TEST(testUpper);
-  CPPUNIT_TEST(testEncodeNonLatin1);
-  CPPUNIT_TEST(testEncodeEmpty);
-  CPPUNIT_TEST(testEncodeNonBMP);
-  CPPUNIT_TEST(testIterator);
-  CPPUNIT_TEST(testInvalidUTF8);
-  CPPUNIT_TEST_SUITE_END();
+  String s = "taglib string";
+  ByteVector v = "taglib string";
+  BOOST_CHECK_EQUAL(s.data(String::Latin1), v);
+  
+  BOOST_CHECK(strcmp(s.toCString(), "taglib string") == 0);
+  BOOST_CHECK_EQUAL(s, "taglib string");
+  BOOST_CHECK_NE(s, "taglib STRING");
+  BOOST_CHECK_NE(s, "taglib");
+  BOOST_CHECK_NE(s, "taglib string taglib");
+  BOOST_CHECK_EQUAL(s, L"taglib string");
+  BOOST_CHECK_NE(s, L"taglib STRING");
+  BOOST_CHECK_NE(s, L"taglib");
+  BOOST_CHECK_NE(s, L"taglib string taglib");
+  
+  s.clear();
+  BOOST_CHECK(s.isEmpty());
+  BOOST_CHECK(!s.isNull()); // deprecated, but still worth it to check.
+  
+  String unicode("José Carlos", String::UTF8);
+  BOOST_CHECK(strcmp(unicode.toCString(), "Jos\xe9 Carlos") == 0);
+  
+  String latin = "Jos\xe9 Carlos";
+  BOOST_CHECK(strcmp(latin.toCString(true), "José Carlos") == 0);
+  
+  String c;
+  c = "1";
+  BOOST_CHECK_EQUAL(c, L"1");
+  
+  c = L'\u4E00';
+  BOOST_CHECK_EQUAL(c, L"\u4E00");
+  
+  String unicode2(unicode.to8Bit(true), String::UTF8);
+  BOOST_CHECK_EQUAL(unicode, unicode2);
+  
+  String unicode3(L"\u65E5\u672C\u8A9E");
+  BOOST_CHECK_EQUAL(*(unicode3.toCWString() + 1), L'\u672C');
+  
+  String unicode4(L"\u65e5\u672c\u8a9e", String::UTF16BE);
+  BOOST_CHECK_EQUAL(unicode4[1], L'\u672c');
+  
+  String unicode5(L"\u65e5\u672c\u8a9e", String::UTF16LE);
+  BOOST_CHECK_EQUAL(unicode5[1], L'\u2c67');
+  
+  const std::wstring stduni = L"\u65e5\u672c\u8a9e";
+  
+  String unicode6(stduni, String::UTF16BE);
+  BOOST_CHECK_EQUAL(unicode6[1], L'\u672c');
+  
+  String unicode7(stduni, String::UTF16LE);
+  BOOST_CHECK_EQUAL(unicode7[1], L'\u2c67');
+  
+  BOOST_CHECK_EQUAL(String("  foo  ").stripWhiteSpace(), "foo");
+  BOOST_CHECK_EQUAL(String("foo    ").stripWhiteSpace(), "foo");
+  BOOST_CHECK_EQUAL(String("    foo").stripWhiteSpace(), "foo");
+  BOOST_CHECK_EQUAL(String("foo").stripWhiteSpace(), "foo");
+  BOOST_CHECK_EQUAL(String("f o o").stripWhiteSpace(), "f o o");
+  BOOST_CHECK_EQUAL(String(" f o o ").stripWhiteSpace(), "f o o");
+  
+  BOOST_CHECK(memcmp(String("foo").data(String::Latin1).data(), "foo", 3) == 0);
+  BOOST_CHECK(memcmp(String("f").data(String::Latin1).data(), "f", 1) == 0);
+}
 
-public:
+BOOST_AUTO_TEST_CASE(testRfind)
+{
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 0), -1);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 1), -1);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 2), -1);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 3), 3);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 4), 3);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 5), 3);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 6), 3);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind(".", 7), 3);
+  BOOST_CHECK_EQUAL(String("foo.bar").rfind("."), 3);
+}
 
-  void testString()
-  {
-    String s = "taglib string";
-    ByteVector v = "taglib string";
-    CPPUNIT_ASSERT(v == s.data(String::Latin1));
+BOOST_AUTO_TEST_CASE(testUTF16Encode)
+{
+  const String a("foo");
+  const ByteVector b("\0f\0o\0o", 6);
+  const ByteVector c("f\0o\0o\0", 6);
+  const ByteVector d("\377\376f\0o\0o\0", 8);
+  BOOST_CHECK_NE(a.data(String::UTF16BE), a.data(String::UTF16LE));
+  BOOST_CHECK_EQUAL(a.data(String::UTF16BE), b);
+  BOOST_CHECK_EQUAL(a.data(String::UTF16LE), c);
+  BOOST_CHECK_EQUAL(a.data(String::UTF16), d);
+}
 
-    char str[] = "taglib string";
-    CPPUNIT_ASSERT(strcmp(s.toCString(), str) == 0);
-    CPPUNIT_ASSERT(s == "taglib string");
-    CPPUNIT_ASSERT(s != "taglib STRING");
-    CPPUNIT_ASSERT(s != "taglib");
-    CPPUNIT_ASSERT(s != "taglib string taglib");
-    CPPUNIT_ASSERT(s == L"taglib string");
-    CPPUNIT_ASSERT(s != L"taglib STRING");
-    CPPUNIT_ASSERT(s != L"taglib");
-    CPPUNIT_ASSERT(s != L"taglib string taglib");
+BOOST_AUTO_TEST_CASE(testUTF16Decode)
+{
+  const String a("foo");
+  const ByteVector b("\0f\0o\0o", 6);
+  const ByteVector c("f\0o\0o\0", 6);
+  const ByteVector d("\377\376f\0o\0o\0", 8);
+  BOOST_CHECK_EQUAL(String(b, String::UTF16BE), a);
+  BOOST_CHECK_EQUAL(String(c, String::UTF16LE), a);
+  BOOST_CHECK_EQUAL(String(d, String::UTF16), a);
+}
 
-    s.clear();
-    CPPUNIT_ASSERT(s.isEmpty());
-    CPPUNIT_ASSERT(!s.isNull()); // deprecated, but still worth it to check.
+BOOST_AUTO_TEST_CASE(testUTF16DecodeInvalidBOM)
+{
+  const ByteVector b(" ", 1);
+  const ByteVector c("  ", 2);
+  const ByteVector d("  \0f\0o\0o", 8);
+  BOOST_CHECK(String(b, String::UTF16).isEmpty());
+  BOOST_CHECK(String(c, String::UTF16).isEmpty());
+  BOOST_CHECK(String(d, String::UTF16).isEmpty());
+}
 
-    String unicode("José Carlos", String::UTF8);
-    CPPUNIT_ASSERT(strcmp(unicode.toCString(), "Jos\xe9 Carlos") == 0);
+BOOST_AUTO_TEST_CASE(testUTF16DecodeEmptyWithBOM)
+{
+  const ByteVector a("\377\376", 2);
+  const ByteVector b("\376\377", 2);
+  BOOST_CHECK(String(a, String::UTF16).isEmpty());
+  BOOST_CHECK(String(b, String::UTF16).isEmpty());
+}
 
-    String latin = "Jos\xe9 Carlos";
-    CPPUNIT_ASSERT(strcmp(latin.toCString(true), "José Carlos") == 0);
+BOOST_AUTO_TEST_CASE(testSurrogatePair)
+{
+  // Make sure that a surrogate pair is converted into single UTF-8 char
+  // and vice versa.
+  
+  const ByteVector v1("\xff\xfe\x42\xd8\xb7\xdf\xce\x91\x4b\x5c");
+  const ByteVector v2("\xf0\xa0\xae\xb7\xe9\x87\x8e\xe5\xb1\x8b");
+  
+  const String s1(v1, String::UTF16);
+  BOOST_CHECK_EQUAL(s1.data(String::UTF8), v2);
+  
+  const String s2(v2, String::UTF8);
+  BOOST_CHECK_EQUAL(s2.data(String::UTF16), v1);
+  
+  const ByteVector v3("\xfe\xff\xd8\x01\x30\x42");
+  BOOST_CHECK(String(v3, String::UTF16).data(String::UTF8).isEmpty());
+  
+  const ByteVector v4("\xfe\xff\x30\x42\xdc\x01");
+  BOOST_CHECK(String(v4, String::UTF16).data(String::UTF8).isEmpty());
+  
+  const ByteVector v5("\xfe\xff\xdc\x01\xd8\x01");
+  BOOST_CHECK(String(v5, String::UTF16).data(String::UTF8).isEmpty());
+}
 
-    String c;
-    c = "1";
-    CPPUNIT_ASSERT(c == L"1");
+BOOST_AUTO_TEST_CASE(testAppendCharDetach)
+{
+  String a("a");
+  String b = a;
+  a += "b";
+  BOOST_CHECK_EQUAL(a, "ab");
+  BOOST_CHECK_EQUAL(b, "a");
+}
 
-    c = L'\u4E00';
-    CPPUNIT_ASSERT(c == L"\u4E00");
+BOOST_AUTO_TEST_CASE(testAppendStringDetach)
+{
+  String a("a");
+  String b = a;
+  a += 'b';
+  BOOST_CHECK_EQUAL(a, "ab");
+  BOOST_CHECK_EQUAL(b, "a");
+}
 
-    String unicode2(unicode.to8Bit(true), String::UTF8);
-    CPPUNIT_ASSERT(unicode == unicode2);
+BOOST_AUTO_TEST_CASE(testToInt)
+{
+  bool ok;
+  BOOST_CHECK_EQUAL(String("123").toInt(&ok), 123);
+  BOOST_CHECK_EQUAL(ok, true);
+  
+  BOOST_CHECK_EQUAL(String("-123").toInt(&ok), -123);
+  BOOST_CHECK_EQUAL(ok, true);
+  
+  BOOST_CHECK_EQUAL(String("abc").toInt(&ok), 0);
+  BOOST_CHECK_EQUAL(ok, false);
+  
+  BOOST_CHECK_EQUAL(String("1x").toInt(&ok), 1);
+  BOOST_CHECK_EQUAL(ok, false);
+  
+  BOOST_CHECK_EQUAL(String("").toInt(&ok), 0);
+  BOOST_CHECK_EQUAL(ok, false);
+  
+  BOOST_CHECK_EQUAL(String("-").toInt(&ok), 0);
+  BOOST_CHECK_EQUAL(ok, false);
+  
+  BOOST_CHECK_EQUAL(String("123").toInt(), 123);
+  BOOST_CHECK_EQUAL(String("-123").toInt(), -123);
+  BOOST_CHECK_EQUAL(String("123aa").toInt(), 123);
+  BOOST_CHECK_EQUAL(String("-123aa").toInt(), -123);
+  
+  BOOST_CHECK_EQUAL(String("0000").toInt(), 0);
+  BOOST_CHECK_EQUAL(String("0001").toInt(), 1);
+  
+  String("2147483648").toInt(&ok);
+  BOOST_CHECK_EQUAL(ok, false);
+  
+  String("-2147483649").toInt(&ok);
+  BOOST_CHECK_EQUAL(ok, false);
+}
 
-    String unicode3(L"\u65E5\u672C\u8A9E");
-    CPPUNIT_ASSERT(*(unicode3.toCWString() + 1) == L'\u672C');
+BOOST_AUTO_TEST_CASE(testFromInt)
+{
+  BOOST_CHECK_EQUAL(String::number(0), "0");
+  BOOST_CHECK_EQUAL(String::number(12345678), "12345678");
+  BOOST_CHECK_EQUAL(String::number(-12345678), "-12345678");
+}
 
-    String unicode4(L"\u65e5\u672c\u8a9e", String::UTF16BE);
-    CPPUNIT_ASSERT(unicode4[1] == L'\u672c');
+BOOST_AUTO_TEST_CASE(testSubstr)
+{
+  BOOST_CHECK_EQUAL(String("0123456").substr(0, 2), "01");
+  BOOST_CHECK_EQUAL(String("0123456").substr(1, 2), "12");
+  BOOST_CHECK_EQUAL(String("0123456").substr(1, 200), "123456");
+  BOOST_CHECK_EQUAL(String("0123456").substr(0, 7), "0123456");
+  BOOST_CHECK_EQUAL(String("0123456").substr(0, 200), "0123456");
+}
 
-    String unicode5(L"\u65e5\u672c\u8a9e", String::UTF16LE);
-    CPPUNIT_ASSERT(unicode5[1] == L'\u2c67');
+BOOST_AUTO_TEST_CASE(testNewline)
+{
+  const ByteVector cr("abc\x0dxyz", 7);
+  const ByteVector lf("abc\x0axyz", 7);
+  const ByteVector crlf("abc\x0d\x0axyz", 8);
+  
+  BOOST_CHECK_EQUAL(String(cr).size(), 7);
+  BOOST_CHECK_EQUAL(String(lf).size(), 7);
+  BOOST_CHECK_EQUAL(String(crlf).size(), 8);
+  
+  BOOST_CHECK_EQUAL(String(cr)[3], L'\x0d');
+  BOOST_CHECK_EQUAL(String(lf)[3], L'\x0a');
+  BOOST_CHECK_EQUAL(String(crlf)[3], L'\x0d');
+  BOOST_CHECK_EQUAL(String(crlf)[4], L'\x0a');
+}
 
-    std::wstring stduni = L"\u65e5\u672c\u8a9e";
+BOOST_AUTO_TEST_CASE(testUpper)
+{
+  String s1 = "tagLIB 012 strING";
+  String s2 = s1.upper();
+  BOOST_CHECK_EQUAL(s1, "tagLIB 012 strING");
+  BOOST_CHECK_EQUAL(s2, "TAGLIB 012 STRING");
+}
 
-    String unicode6(stduni, String::UTF16BE);
-    CPPUNIT_ASSERT(unicode6[1] == L'\u672c');
+BOOST_AUTO_TEST_CASE(testEncodeNonLatin1)
+{
+  const String jpn(L"\u65E5\u672C\u8A9E");
+  BOOST_CHECK_EQUAL(jpn.data(String::Latin1), "\xE5\x2C\x9E");
+  BOOST_CHECK_EQUAL(jpn.data(String::UTF8), "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E");
+  BOOST_CHECK_EQUAL(jpn.data(String::UTF16), "\xFF\xFE\xE5\x65\x2C\x67\x9E\x8A");
+  BOOST_CHECK_EQUAL(jpn.data(String::UTF16LE), "\xE5\x65\x2C\x67\x9E\x8A");
+  BOOST_CHECK_EQUAL(jpn.data(String::UTF16BE), "\x65\xE5\x67\x2C\x8A\x9E");
+  BOOST_CHECK_EQUAL(jpn.to8Bit(false), "\xE5\x2C\x9E");
+  BOOST_CHECK_EQUAL(jpn.to8Bit(true), "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E");
+}
 
-    String unicode7(stduni, String::UTF16LE);
-    CPPUNIT_ASSERT(unicode7[1] == L'\u2c67');
-
-    CPPUNIT_ASSERT(String("  foo  ").stripWhiteSpace() == String("foo"));
-    CPPUNIT_ASSERT(String("foo    ").stripWhiteSpace() == String("foo"));
-    CPPUNIT_ASSERT(String("    foo").stripWhiteSpace() == String("foo"));
-    CPPUNIT_ASSERT(String("foo").stripWhiteSpace() == String("foo"));
-    CPPUNIT_ASSERT(String("f o o").stripWhiteSpace() == String("f o o"));
-    CPPUNIT_ASSERT(String(" f o o ").stripWhiteSpace() == String("f o o"));
-
-    CPPUNIT_ASSERT(memcmp(String("foo").data(String::Latin1).data(), "foo", 3) == 0);
-    CPPUNIT_ASSERT(memcmp(String("f").data(String::Latin1).data(), "f", 1) == 0);
-  }
-
-  void testUTF16Encode()
-  {
-    String a("foo");
-    ByteVector b("\0f\0o\0o", 6);
-    ByteVector c("f\0o\0o\0", 6);
-    ByteVector d("\377\376f\0o\0o\0", 8);
-    CPPUNIT_ASSERT(a.data(String::UTF16BE) != a.data(String::UTF16LE));
-    CPPUNIT_ASSERT(b == a.data(String::UTF16BE));
-    CPPUNIT_ASSERT(c == a.data(String::UTF16LE));
-    CPPUNIT_ASSERT_EQUAL(d, a.data(String::UTF16));
-  }
-
-  void testUTF16Decode()
-  {
-    String a("foo");
-    ByteVector b("\0f\0o\0o", 6);
-    ByteVector c("f\0o\0o\0", 6);
-    ByteVector d("\377\376f\0o\0o\0", 8);
-    CPPUNIT_ASSERT_EQUAL(a, String(b, String::UTF16BE));
-    CPPUNIT_ASSERT_EQUAL(a, String(c, String::UTF16LE));
-    CPPUNIT_ASSERT_EQUAL(a, String(d, String::UTF16));
-  }
-
-  // this test is expected to print "TagLib: String::prepare() -
-  // Invalid UTF16 string." on the console 3 times
-  void testUTF16DecodeInvalidBOM()
-  {
-    ByteVector b(" ", 1);
-    ByteVector c("  ", 2);
-    ByteVector d("  \0f\0o\0o", 8);
-    CPPUNIT_ASSERT_EQUAL(String(), String(b, String::UTF16));
-    CPPUNIT_ASSERT_EQUAL(String(), String(c, String::UTF16));
-    CPPUNIT_ASSERT_EQUAL(String(), String(d, String::UTF16));
-  }
-
-  void testUTF16DecodeEmptyWithBOM()
-  {
-    ByteVector a("\377\376", 2);
-    ByteVector b("\376\377", 2);
-    CPPUNIT_ASSERT_EQUAL(String(), String(a, String::UTF16));
-    CPPUNIT_ASSERT_EQUAL(String(), String(b, String::UTF16));
-  }
-
-  void testSurrogatePair()
-  {
-    // Make sure that a surrogate pair is converted into single UTF-8 char
-    // and vice versa.
-
-    const ByteVector v1("\xff\xfe\x42\xd8\xb7\xdf\xce\x91\x4b\x5c");
-    const ByteVector v2("\xf0\xa0\xae\xb7\xe9\x87\x8e\xe5\xb1\x8b");
-
-    const String s1(v1, String::UTF16);
-    CPPUNIT_ASSERT_EQUAL(s1.data(String::UTF8), v2);
-
-    const String s2(v2, String::UTF8);
-    CPPUNIT_ASSERT_EQUAL(s2.data(String::UTF16), v1);
-
-    const ByteVector v3("\xfe\xff\xd8\x01\x30\x42");
-    CPPUNIT_ASSERT(String(v3, String::UTF16).data(String::UTF8).isEmpty());
-
-    const ByteVector v4("\xfe\xff\x30\x42\xdc\x01");
-    CPPUNIT_ASSERT(String(v4, String::UTF16).data(String::UTF8).isEmpty());
-
-    const ByteVector v5("\xfe\xff\xdc\x01\xd8\x01");
-    CPPUNIT_ASSERT(String(v5, String::UTF16).data(String::UTF8).isEmpty());
-  }
-
-  void testAppendStringDetach()
-  {
-    String a("a");
-    String b = a;
-    a += "b";
-    CPPUNIT_ASSERT_EQUAL(String("ab"), a);
-    CPPUNIT_ASSERT_EQUAL(String("a"), b);
-  }
-
-  void testAppendCharDetach()
-  {
-    String a("a");
-    String b = a;
-    a += 'b';
-    CPPUNIT_ASSERT_EQUAL(String("ab"), a);
-    CPPUNIT_ASSERT_EQUAL(String("a"), b);
-  }
-
-  void testRfind()
-  {
-    CPPUNIT_ASSERT_EQUAL(-1, String("foo.bar").rfind(".", 0));
-    CPPUNIT_ASSERT_EQUAL(-1, String("foo.bar").rfind(".", 1));
-    CPPUNIT_ASSERT_EQUAL(-1, String("foo.bar").rfind(".", 2));
-    CPPUNIT_ASSERT_EQUAL(3, String("foo.bar").rfind(".", 3));
-    CPPUNIT_ASSERT_EQUAL(3, String("foo.bar").rfind(".", 4));
-    CPPUNIT_ASSERT_EQUAL(3, String("foo.bar").rfind(".", 5));
-    CPPUNIT_ASSERT_EQUAL(3, String("foo.bar").rfind(".", 6));
-    CPPUNIT_ASSERT_EQUAL(3, String("foo.bar").rfind(".", 7));
-    CPPUNIT_ASSERT_EQUAL(3, String("foo.bar").rfind("."));
-  }
-
-  void testToInt()
-  {
-    bool ok;
-    CPPUNIT_ASSERT_EQUAL(String("123").toInt(&ok), 123);
-    CPPUNIT_ASSERT_EQUAL(ok, true);
-
-    CPPUNIT_ASSERT_EQUAL(String("-123").toInt(&ok), -123);
-    CPPUNIT_ASSERT_EQUAL(ok, true);
-
-    CPPUNIT_ASSERT_EQUAL(String("abc").toInt(&ok), 0);
-    CPPUNIT_ASSERT_EQUAL(ok, false);
-
-    CPPUNIT_ASSERT_EQUAL(String("1x").toInt(&ok), 1);
-    CPPUNIT_ASSERT_EQUAL(ok, false);
-
-    CPPUNIT_ASSERT_EQUAL(String("").toInt(&ok), 0);
-    CPPUNIT_ASSERT_EQUAL(ok, false);
-
-    CPPUNIT_ASSERT_EQUAL(String("-").toInt(&ok), 0);
-    CPPUNIT_ASSERT_EQUAL(ok, false);
-
-    CPPUNIT_ASSERT_EQUAL(String("123").toInt(), 123);
-    CPPUNIT_ASSERT_EQUAL(String("-123").toInt(), -123);
-    CPPUNIT_ASSERT_EQUAL(String("123aa").toInt(), 123);
-    CPPUNIT_ASSERT_EQUAL(String("-123aa").toInt(), -123);
-
-    CPPUNIT_ASSERT_EQUAL(String("0000").toInt(), 0);
-    CPPUNIT_ASSERT_EQUAL(String("0001").toInt(), 1);
-
-    String("2147483648").toInt(&ok);
-    CPPUNIT_ASSERT_EQUAL(ok, false);
-
-    String("-2147483649").toInt(&ok);
-    CPPUNIT_ASSERT_EQUAL(ok, false);
-  }
-
-  void testFromInt()
-  {
-    CPPUNIT_ASSERT_EQUAL(String::number(0), String("0"));
-    CPPUNIT_ASSERT_EQUAL(String::number(12345678), String("12345678"));
-    CPPUNIT_ASSERT_EQUAL(String::number(-12345678), String("-12345678"));
-  }
-
-  void testSubstr()
-  {
-    CPPUNIT_ASSERT_EQUAL(String("01"), String("0123456").substr(0, 2));
-    CPPUNIT_ASSERT_EQUAL(String("12"), String("0123456").substr(1, 2));
-    CPPUNIT_ASSERT_EQUAL(String("123456"), String("0123456").substr(1, 200));
-    CPPUNIT_ASSERT_EQUAL(String("0123456"), String("0123456").substr(0, 7));
-    CPPUNIT_ASSERT_EQUAL(String("0123456"), String("0123456").substr(0, 200));
-  }
-
-  void testNewline()
-  {
-    ByteVector cr("abc\x0dxyz", 7);
-    ByteVector lf("abc\x0axyz", 7);
-    ByteVector crlf("abc\x0d\x0axyz", 8);
-
-    CPPUNIT_ASSERT_EQUAL((unsigned int)7, String(cr).size());
-    CPPUNIT_ASSERT_EQUAL((unsigned int)7, String(lf).size());
-    CPPUNIT_ASSERT_EQUAL((unsigned int)8, String(crlf).size());
-
-    CPPUNIT_ASSERT_EQUAL(L'\x0d', String(cr)[3]);
-    CPPUNIT_ASSERT_EQUAL(L'\x0a', String(lf)[3]);
-    CPPUNIT_ASSERT_EQUAL(L'\x0d', String(crlf)[3]);
-    CPPUNIT_ASSERT_EQUAL(L'\x0a', String(crlf)[4]);
-  }
-
-  void testUpper()
-  {
-    String s1 = "tagLIB 012 strING";
-    String s2 = s1.upper();
-    CPPUNIT_ASSERT_EQUAL(String("tagLIB 012 strING"), s1);
-    CPPUNIT_ASSERT_EQUAL(String("TAGLIB 012 STRING"), s2);
-  }
-
-  void testEncodeNonLatin1()
-  {
-    const String jpn(L"\u65E5\u672C\u8A9E");
-    CPPUNIT_ASSERT_EQUAL(ByteVector("\xE5\x2C\x9E"), jpn.data(String::Latin1));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E"), jpn.data(String::UTF8));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("\xFF\xFE\xE5\x65\x2C\x67\x9E\x8A"), jpn.data(String::UTF16));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("\xE5\x65\x2C\x67\x9E\x8A"), jpn.data(String::UTF16LE));
-    CPPUNIT_ASSERT_EQUAL(ByteVector("\x65\xE5\x67\x2C\x8A\x9E"), jpn.data(String::UTF16BE));
-    CPPUNIT_ASSERT_EQUAL(std::string("\xE5\x2C\x9E"), jpn.to8Bit(false));
-    CPPUNIT_ASSERT_EQUAL(std::string("\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E"), jpn.to8Bit(true));
-  }
-
-  void testEncodeEmpty()
-  {
+BOOST_AUTO_TEST_CASE(testEncodeEmpty)
+{
     const String empty;
-    CPPUNIT_ASSERT(empty.data(String::Latin1).isEmpty());
-    CPPUNIT_ASSERT(empty.data(String::UTF8).isEmpty());
-    CPPUNIT_ASSERT_EQUAL(ByteVector("\xFF\xFE"), empty.data(String::UTF16));
-    CPPUNIT_ASSERT(empty.data(String::UTF16LE).isEmpty());
-    CPPUNIT_ASSERT(empty.data(String::UTF16BE).isEmpty());
-    CPPUNIT_ASSERT(empty.to8Bit(false).empty());
-    CPPUNIT_ASSERT(empty.to8Bit(true).empty());
-  }
+    BOOST_CHECK(empty.data(String::Latin1).isEmpty());
+    BOOST_CHECK(empty.data(String::UTF8).isEmpty());
+    BOOST_CHECK_EQUAL(empty.data(String::UTF16), "\xFF\xFE");
+    BOOST_CHECK(empty.data(String::UTF16LE).isEmpty());
+    BOOST_CHECK(empty.data(String::UTF16BE).isEmpty());
+    BOOST_CHECK(empty.to8Bit(false).empty());
+    BOOST_CHECK(empty.to8Bit(true).empty());
+}
 
-  void testEncodeNonBMP()
-  {
-    const ByteVector a("\xFF\xFE\x3C\xD8\x50\xDD\x40\xD8\xF5\xDC\x3C\xD8\x00\xDE", 14);
-    const ByteVector b("\xF0\x9F\x85\x90\xF0\xA0\x83\xB5\xF0\x9F\x88\x80");
-    CPPUNIT_ASSERT_EQUAL(b, String(a, String::UTF16).data(String::UTF8));
-  }
+BOOST_AUTO_TEST_CASE(testEncodeNonBMP)
+{
+  const ByteVector a("\xFF\xFE\x3C\xD8\x50\xDD\x40\xD8\xF5\xDC\x3C\xD8\x00\xDE", 14);
+  const ByteVector b("\xF0\x9F\x85\x90\xF0\xA0\x83\xB5\xF0\x9F\x88\x80");
+  BOOST_CHECK_EQUAL(String(a, String::UTF16).data(String::UTF8), b);
+}
 
-  void testIterator()
-  {
-    String s1 = "taglib string";
-    String s2 = s1;
+BOOST_AUTO_TEST_CASE(testIterator)
+{
+  String s1 = "taglib string";
+  String s2 = s1;
+  
+  String::Iterator it1 = s1.begin();
+  String::Iterator it2 = s2.begin();
+  
+  BOOST_CHECK_EQUAL(*it1, L't');
+  BOOST_CHECK_EQUAL(*it2, L't');
+  
+  std::advance(it1, 4);
+  std::advance(it2, 4);
+  *it2 = L'I';
+  BOOST_CHECK_EQUAL(*it1, L'i');
+  BOOST_CHECK_EQUAL(*it2, L'I');
+}
 
-    String::Iterator it1 = s1.begin();
-    String::Iterator it2 = s2.begin();
+BOOST_AUTO_TEST_CASE(testInvalidUTF8)
+{
+  BOOST_CHECK_EQUAL(String(ByteVector("\x2F"), String::UTF8), "/");
+  BOOST_CHECK(String(ByteVector("\xC0\xAF"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xE0\x80\xAF"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xF0\x80\x80\xAF"), String::UTF8).isEmpty());
+  
+  BOOST_CHECK(String(ByteVector("\xF8\x80\x80\x80\x80"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xFC\x80\x80\x80\x80\x80"), String::UTF8).isEmpty());
+  
+  BOOST_CHECK(String(ByteVector("\xC2"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xE0\x80"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xF0\x80\x80"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xF8\x80\x80\x80"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xFC\x80\x80\x80\x80"), String::UTF8).isEmpty());
+  
+  BOOST_CHECK(String('\x80', String::UTF8).isEmpty());
+  
+  BOOST_CHECK(String(ByteVector("\xED\xA0\x80\xED\xB0\x80"), String::UTF8).isEmpty());
+  BOOST_CHECK(String(ByteVector("\xED\xB0\x80\xED\xA0\x80"), String::UTF8).isEmpty());
+}
 
-    CPPUNIT_ASSERT_EQUAL(L't', *it1);
-    CPPUNIT_ASSERT_EQUAL(L't', *it2);
-
-    std::advance(it1, 4);
-    std::advance(it2, 4);
-    *it2 = L'I';
-    CPPUNIT_ASSERT_EQUAL(L'i', *it1);
-    CPPUNIT_ASSERT_EQUAL(L'I', *it2);
-  }
-
-  void testInvalidUTF8()
-  {
-    CPPUNIT_ASSERT_EQUAL(String("/"), String(ByteVector("\x2F"), String::UTF8));
-    CPPUNIT_ASSERT(String(ByteVector("\xC0\xAF"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xE0\x80\xAF"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xF0\x80\x80\xAF"), String::UTF8).isEmpty());
-
-    CPPUNIT_ASSERT(String(ByteVector("\xF8\x80\x80\x80\x80"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xFC\x80\x80\x80\x80\x80"), String::UTF8).isEmpty());
-
-    CPPUNIT_ASSERT(String(ByteVector("\xC2"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xE0\x80"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xF0\x80\x80"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xF8\x80\x80\x80"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xFC\x80\x80\x80\x80"), String::UTF8).isEmpty());
-
-    CPPUNIT_ASSERT(String('\x80', String::UTF8).isEmpty());
-
-    CPPUNIT_ASSERT(String(ByteVector("\xED\xA0\x80\xED\xB0\x80"), String::UTF8).isEmpty());
-    CPPUNIT_ASSERT(String(ByteVector("\xED\xB0\x80\xED\xA0\x80"), String::UTF8).isEmpty());
-  }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestString);
-
+BOOST_AUTO_TEST_SUITE_END()

@@ -23,53 +23,42 @@
  *   http://www.mozilla.org/MPL/                                           *
  ***************************************************************************/
 
-#include <string>
-#include <stdio.h>
 #include <infotag.h>
-#include <cppunit/extensions/HelperMacros.h>
-#include "utils.h"
+#include <boost/test/unit_test.hpp>
+#include "loghelpers.h"
 
-using namespace std;
 using namespace TagLib;
 
-class TestInfoTag : public CppUnit::TestFixture
+BOOST_AUTO_TEST_SUITE(TestInfoTag)
+
+BOOST_AUTO_TEST_CASE(testTitle)
 {
-  CPPUNIT_TEST_SUITE(TestInfoTag);
-  CPPUNIT_TEST(testTitle);
-  CPPUNIT_TEST(testNumericFields);
-  CPPUNIT_TEST_SUITE_END();
+  RIFF::Info::Tag tag;
+  
+  BOOST_CHECK(tag.title().isEmpty());
+  tag.setTitle("Test title 1");
+  tag.setFieldText("TEST", "Dummy Text");
+  
+  BOOST_CHECK_EQUAL(tag.title(), "Test title 1");
+  
+  const RIFF::Info::FieldListMap map = tag.fieldListMap();
+  BOOST_CHECK_EQUAL(map["INAM"], "Test title 1");
+  BOOST_CHECK_EQUAL(map["TEST"], "Dummy Text");
+}
 
-public:
-  void testTitle()
-  {
-    RIFF::Info::Tag tag;
+BOOST_AUTO_TEST_CASE(testNumericFields)
+{
+  RIFF::Info::Tag tag;
+  
+  BOOST_CHECK_EQUAL(tag.track(), 0);
+  tag.setTrack(1234);
+  BOOST_CHECK_EQUAL(tag.track(), 1234);
+  BOOST_CHECK_EQUAL(tag.fieldText("IPRT"), "1234");
+  
+  BOOST_CHECK_EQUAL(tag.year(), 0);
+  tag.setYear(1234);
+  BOOST_CHECK_EQUAL(tag.year(), 1234);
+  BOOST_CHECK_EQUAL(tag.fieldText("ICRD"), "1234");
+}
 
-    CPPUNIT_ASSERT_EQUAL(String(""), tag.title());
-    tag.setTitle("Test title 1");
-    tag.setFieldText("TEST", "Dummy Text");
-
-    CPPUNIT_ASSERT_EQUAL(String("Test title 1"), tag.title());
-
-    RIFF::Info::FieldListMap map = tag.fieldListMap();
-    CPPUNIT_ASSERT_EQUAL(String("Test title 1"), map["INAM"]);
-    CPPUNIT_ASSERT_EQUAL(String("Dummy Text"), map["TEST"]);
-  }
-
-  void testNumericFields()
-  {
-    RIFF::Info::Tag tag;
-
-    CPPUNIT_ASSERT_EQUAL((unsigned int)0, tag.track());
-    tag.setTrack(1234);
-    CPPUNIT_ASSERT_EQUAL((unsigned int)1234, tag.track());
-    CPPUNIT_ASSERT_EQUAL(String("1234"), tag.fieldText("IPRT"));
-
-    CPPUNIT_ASSERT_EQUAL((unsigned int)0, tag.year());
-    tag.setYear(1234);
-    CPPUNIT_ASSERT_EQUAL((unsigned int)1234, tag.year());
-    CPPUNIT_ASSERT_EQUAL(String("1234"), tag.fieldText("ICRD"));
-  }
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestInfoTag);
-
+BOOST_AUTO_TEST_SUITE_END()

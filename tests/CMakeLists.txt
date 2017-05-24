@@ -1,4 +1,4 @@
-INCLUDE_DIRECTORIES(
+include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/../taglib
   ${CMAKE_CURRENT_SOURCE_DIR}/../taglib/toolkit
   ${CMAKE_CURRENT_SOURCE_DIR}/../taglib/ape
@@ -26,7 +26,7 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}/../taglib/xm
 )
 
-SET(test_runner_SRCS
+set(test_runner_SRCS
   main.cpp
   test_list.cpp
   test_map.cpp
@@ -68,11 +68,14 @@ SET(test_runner_SRCS
   test_speex.cpp
 )
 
-INCLUDE_DIRECTORIES(${CPPUNIT_INCLUDE_DIR})
+include_directories(${Boost_INCLUDE_DIR})
 
-ADD_EXECUTABLE(test_runner ${test_runner_SRCS})
-TARGET_LINK_LIBRARIES(test_runner tag ${CPPUNIT_LIBRARIES})
+if(NOT Boost_USE_STATIC_LIBS)
+  add_definitions(-DBOOST_TEST_DYN_LINK) 
+endif()
 
-ADD_TEST(test_runner test_runner)
-ADD_CUSTOM_TARGET(check COMMAND ${CMAKE_CTEST_COMMAND} -V
-                  DEPENDS test_runner)
+add_executable(test_runner ${test_runner_SRCS})
+target_link_libraries(test_runner tag ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY})
+
+add_test(test_runner test_runner)
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -V DEPENDS test_runner)
