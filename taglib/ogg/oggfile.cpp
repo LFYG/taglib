@@ -27,6 +27,7 @@
 #include <tmap.h>
 #include <tstring.h>
 #include <tdebug.h>
+#include <tsmartptr.h>
 
 #include "oggfile.h"
 #include "oggpage.h"
@@ -36,36 +37,113 @@ using namespace TagLib;
 
 namespace
 {
+  typedef List<SHARED_PTR<Ogg::Page> > PageList;
+  typedef PageList::ConstIterator PageConstIterator;
+
   // Returns the first packet index of the right next page to the given one.
-  unsigned int nextPacketIndex(const Ogg::Page *page)
+  unsigned int nextPacketIndex(const SHARED_PTR<Ogg::Page> page)
   {
     if(page->header()->lastPacketCompleted())
       return page->firstPacketIndex() + page->packetCount();
     else
       return page->firstPacketIndex() + page->packetCount() - 1;
   }
+
+  // Pack packets into Ogg pages.
+  //
+  // The page number indicator inside of the rendered packets will start
+  // with firstPage and be incremented for each page rendered.
+  // containsLastPacket should be set to true if packets contains the
+  // last page in the stream and will set the appropriate flag in the last
+  // rendered Ogg page's header.  streamSerialNumber should be set to
+  // the serial number for this stream.
+  //
+  // \note The "absolute granule position" is currently always zeroed using
+  // this method as this suffices for the comment headers.
+  PageList paginate(const ByteVectorList &packets,
+                    unsigned int streamSerialNumber,
+                    int firstPage,
+                    bool firstPacketContinued = false,
+                    bool lastPacketCompleted = true,
+                    bool containsLastPacket = false)
+  {
+    // SplitSize must be a multiple of 255 in order to get the lacing values right
+    // create pages of about 8KB each.
+
+    static const unsigned int SplitSize = 32 * 255;
+
+    // Force repagination if the segment table would exceed the size limit.
+
+    bool repaginate = false;
+
+    size_t tableSize = 0;
+    for(ByteVectorList::ConstIterator it = packets.begin(); it != packets.end(); ++it)
+      tableSize += it->size() / 255 + 1;
+
+    if(tableSize > 255)
+      repaginate = true;
+
+    PageList l;
+
+    // Handle creation of multiple pages with appropriate pagination.
+
+    if(repaginate) {
+
+      int pageIndex = firstPage;
+
+      for(ByteVectorList::ConstIterator it = packets.begin(); it != packets.end(); ++it) {
+
+        const bool lastPacketInList = (it == --packets.end());
+
+        // mark very first packet?
+
+        bool continued = (firstPacketContinued && it == packets.begin());
+        unsigned int pos = 0;
+
+        while(pos < it->size()) {
+
+          const bool lastSplit = (pos + SplitSize >= it->size());
+
+          ByteVectorList packetList;
+          packetList.append(it->mid(pos, SplitSize));
+
+          l.append(SHARED_PTR<Ogg::Page>(new Ogg::Page(
+            packetList,
+            streamSerialNumber,
+            pageIndex,
+            continued,
+            lastSplit && (lastPacketInList ? lastPacketCompleted : true),
+            lastSplit && (containsLastPacket && lastPacketInList))));
+
+          pageIndex++;
+          continued = true;
+
+          pos += SplitSize;
+        }
+      }
+    }
+    else {
+      l.append(SHARED_PTR<Ogg::Page>(new Ogg::Page(
+        packets,
+        streamSerialNumber,
+        firstPage,
+        firstPacketContinued,
+        lastPacketCompleted,
+        containsLastPacket)));
+    }
+
+    return l;
+  }
 }
 
 class Ogg::File::FilePrivate
 {
 public:
-  FilePrivate() :
-    firstPageHeader(0),
-    lastPageHeader(0)
-  {
-    pages.setAutoDelete(true);
-  }
-
-  ~FilePrivate()
-  {
-    delete firstPageHeader;
-    delete lastPageHeader;
-  }
 
   unsigned int streamSerialNumber;
-  List<Page *> pages;
-  PageHeader *firstPageHeader;
-  PageHeader *lastPageHeader;
+  PageList pages;
+  SCOPED_PTR<PageHeader> firstPageHeader;
+  SCOPED_PTR<PageHeader> lastPageHeader;
   Map<unsigned int, ByteVector> dirtyPackets;
 };
 
@@ -96,7 +174,7 @@ ByteVector Ogg::File::packet(unsigned int i)
 
   // Look for the first page in which the requested packet starts.
 
-  List<Page *>::ConstIterator it = d->pages.begin();
+  PageConstIterator it = d->pages.begin();
   while((*it)->containsPacket(i) == Page::DoesNotContainPacket)
     ++it;
 
@@ -134,10 +212,10 @@ const Ogg::PageHeader *Ogg::File::firstPageHeader()
     if(firstPageHeaderOffset < 0)
       return 0;
 
-    d->firstPageHeader = new PageHeader(this, firstPageHeaderOffset);
+    d->firstPageHeader.reset(new PageHeader(this, firstPageHeaderOffset));
   }
 
-  return d->firstPageHeader->isValid() ? d->firstPageHeader : 0;
+  return d->firstPageHeader->isValid() ? d->firstPageHeader.get() : 0;
 }
 
 const Ogg::PageHeader *Ogg::File::lastPageHeader()
@@ -147,10 +225,10 @@ const Ogg::PageHeader *Ogg::File::lastPageHeader()
     if(lastPageHeaderOffset < 0)
       return 0;
 
-    d->lastPageHeader = new PageHeader(this, lastPageHeaderOffset);
+    d->lastPageHeader.reset(new PageHeader(this, lastPageHeaderOffset));
   }
 
-  return d->lastPageHeader->isValid() ? d->lastPageHeader : 0;
+  return d->lastPageHeader->isValid() ? d->lastPageHeader.get() : 0;
 }
 
 bool Ogg::File::save()
@@ -202,7 +280,7 @@ bool Ogg::File::readPages(unsigned int i)
         return false;
     }
     else {
-      const Page *page = d->pages.back();
+      const SHARED_PTR<Page> page = d->pages.back();
       packetIndex = nextPacketIndex(page);
       offset = page->fileOffset() + page->size();
     }
@@ -214,9 +292,8 @@ bool Ogg::File::readPages(unsigned int i)
 
     // Read the next page and add it to the page list.
 
-    Page *nextPage = new Page(this, offset);
+    SHARED_PTR<Page> nextPage(new Page(this, offset));
     if(!nextPage->header()->isValid()) {
-      delete nextPage;
       return false;
     }
 
@@ -237,16 +314,16 @@ void Ogg::File::writePacket(unsigned int i, const ByteVector &packet)
 
   // Look for the pages where the requested packet should belong to.
 
-  List<Page *>::ConstIterator it = d->pages.begin();
+  PageConstIterator it = d->pages.begin();
   while((*it)->containsPacket(i) == Page::DoesNotContainPacket)
     ++it;
 
-  const Page *firstPage = *it;
+  const SHARED_PTR<Page> firstPage = *it;
 
   while(nextPacketIndex(*it) <= i)
     ++it;
 
-  const Page *lastPage = *it;
+  const SHARED_PTR<Page> lastPage = *it;
 
   // Replace the requested packet and create new pages to replace the located pages.
 
@@ -262,13 +339,11 @@ void Ogg::File::writePacket(unsigned int i, const ByteVector &packet)
   // TODO: This pagination method isn't accurate for what's being done here.
   // This should account for real possibilities like non-aligned packets and such.
 
-  List<Page *> pages = Page::paginate(packets,
-                                      Page::SinglePagePerGroup,
-                                      firstPage->header()->streamSerialNumber(),
-                                      firstPage->pageSequenceNumber(),
-                                      firstPage->header()->firstPacketContinued(),
-                                      lastPage->header()->lastPacketCompleted());
-  pages.setAutoDelete(true);
+  const PageList pages = paginate(packets,
+                                  firstPage->header()->streamSerialNumber(),
+                                  firstPage->pageSequenceNumber(),
+                                  firstPage->header()->firstPacketContinued(),
+                                  lastPage->header()->lastPacketCompleted());
 
   // Write the pages.
 

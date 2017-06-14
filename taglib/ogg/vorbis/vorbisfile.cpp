@@ -29,6 +29,7 @@
 #include <tdebug.h>
 #include <tpropertymap.h>
 #include <tagutils.h>
+#include <tsmartptr.h>
 
 #include "vorbisfile.h"
 
@@ -37,18 +38,8 @@ using namespace TagLib;
 class Ogg::Vorbis::File::FilePrivate
 {
 public:
-  FilePrivate() :
-    comment(0),
-    properties(0) {}
-
-  ~FilePrivate()
-  {
-    delete comment;
-    delete properties;
-  }
-
-  Ogg::XiphComment *comment;
-  AudioProperties *properties;
+  SCOPED_PTR<Ogg::XiphComment> comment;
+  SCOPED_PTR<AudioProperties>  properties;
 };
 
 namespace TagLib {
@@ -99,12 +90,12 @@ Ogg::Vorbis::File::~File()
 
 Ogg::XiphComment *Ogg::Vorbis::File::tag() const
 {
-  return d->comment;
+  return d->comment.get();
 }
 
 Ogg::Vorbis::AudioProperties *Ogg::Vorbis::File::audioProperties() const
 {
-  return d->properties;
+  return d->properties.get();
 }
 
 bool Ogg::Vorbis::File::save()
@@ -112,7 +103,7 @@ bool Ogg::Vorbis::File::save()
   ByteVector v(vorbisCommentHeaderID);
 
   if(!d->comment)
-    d->comment = new Ogg::XiphComment();
+    d->comment.reset(new Ogg::XiphComment());
   v.append(d->comment->render());
 
   setPacket(1, v);
@@ -134,8 +125,8 @@ void Ogg::Vorbis::File::read(bool readProperties)
     return;
   }
 
-  d->comment = new Ogg::XiphComment(commentHeaderData.mid(7));
+  d->comment.reset(new Ogg::XiphComment(commentHeaderData.mid(7)));
 
   if(readProperties)
-    d->properties = new AudioProperties(this);
+    d->properties.reset(new AudioProperties(this));
 }

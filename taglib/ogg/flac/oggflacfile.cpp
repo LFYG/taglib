@@ -28,6 +28,7 @@
 #include <tdebug.h>
 #include <tpropertymap.h>
 #include <tagutils.h>
+#include <tsmartptr.h>
 
 #include <xiphcomment.h>
 #include "oggflacfile.h"
@@ -39,23 +40,15 @@ class Ogg::FLAC::File::FilePrivate
 {
 public:
   FilePrivate() :
-    comment(0),
-    properties(0),
     streamStart(0),
     streamLength(0),
     scanned(false),
     hasXiphComment(false),
     commentPacket(0) {}
 
-  ~FilePrivate()
-  {
-    delete comment;
-    delete properties;
-  }
+  SCOPED_PTR<Ogg::XiphComment> comment;
 
-  Ogg::XiphComment *comment;
-
-  AudioProperties *properties;
+  SCOPED_PTR<AudioProperties> properties;
   ByteVector streamInfoData;
   ByteVector xiphCommentData;
   long long streamStart;
@@ -108,12 +101,12 @@ Ogg::FLAC::File::~File()
 
 Ogg::XiphComment *Ogg::FLAC::File::tag() const
 {
-  return d->comment;
+  return d->comment.get();
 }
 
 FLAC::AudioProperties *Ogg::FLAC::File::audioProperties() const
 {
-  return d->properties;
+  return d->properties.get();;
 }
 
 bool Ogg::FLAC::File::save()
@@ -175,13 +168,13 @@ void Ogg::FLAC::File::read(bool readProperties, AudioProperties::ReadStyle prope
 
 
   if(d->hasXiphComment)
-    d->comment = new Ogg::XiphComment(xiphCommentData());
+    d->comment.reset(new Ogg::XiphComment(xiphCommentData()));
   else
-    d->comment = new Ogg::XiphComment();
+    d->comment.reset(new Ogg::XiphComment());
 
 
   if(readProperties)
-    d->properties = new AudioProperties(streamInfoData(), streamLength(), propertiesStyle);
+    d->properties.reset(new AudioProperties(streamInfoData(), streamLength(), propertiesStyle));
 }
 
 ByteVector Ogg::FLAC::File::streamInfoData()

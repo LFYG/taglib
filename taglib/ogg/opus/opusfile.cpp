@@ -31,6 +31,7 @@
 #include <tdebug.h>
 #include <tpropertymap.h>
 #include <tagutils.h>
+#include <tsmartptr.h>
 
 #include "opusfile.h"
 
@@ -40,18 +41,8 @@ using namespace TagLib::Ogg;
 class Opus::File::FilePrivate
 {
 public:
-  FilePrivate() :
-    comment(0),
-    properties(0) {}
-
-  ~FilePrivate()
-  {
-    delete comment;
-    delete properties;
-  }
-
-  Ogg::XiphComment *comment;
-  AudioProperties *properties;
+  SCOPED_PTR<Ogg::XiphComment> comment;
+  SCOPED_PTR<AudioProperties>  properties;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,18 +85,18 @@ Opus::File::~File()
 
 Ogg::XiphComment *Opus::File::tag() const
 {
-  return d->comment;
+  return d->comment.get();
 }
 
 Opus::AudioProperties *Opus::File::audioProperties() const
 {
-  return d->properties;
+  return d->properties.get();
 }
 
 bool Opus::File::save()
 {
   if(!d->comment)
-    d->comment = new Ogg::XiphComment();
+    d->comment.reset(new Ogg::XiphComment());
 
   setPacket(1, ByteVector("OpusTags", 8) + d->comment->render(false));
 
@@ -134,8 +125,8 @@ void Opus::File::read(bool readProperties)
     return;
   }
 
-  d->comment = new Ogg::XiphComment(commentHeaderData.mid(8));
+  d->comment.reset(new Ogg::XiphComment(commentHeaderData.mid(8)));
 
   if(readProperties)
-    d->properties = new AudioProperties(this);
+    d->properties.reset(new AudioProperties(this));
 }

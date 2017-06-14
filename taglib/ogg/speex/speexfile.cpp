@@ -31,6 +31,7 @@
 #include <tdebug.h>
 #include <tpropertymap.h>
 #include <tagutils.h>
+#include <tsmartptr.h>
 
 #include "speexfile.h"
 
@@ -40,18 +41,8 @@ using namespace TagLib::Ogg;
 class Speex::File::FilePrivate
 {
 public:
-  FilePrivate() :
-    comment(0),
-    properties(0) {}
-
-  ~FilePrivate()
-  {
-    delete comment;
-    delete properties;
-  }
-
-  Ogg::XiphComment *comment;
-  AudioProperties *properties;
+  SCOPED_PTR<Ogg::XiphComment> comment;
+  SCOPED_PTR<AudioProperties>  properties;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,18 +85,18 @@ Speex::File::~File()
 
 Ogg::XiphComment *Speex::File::tag() const
 {
-  return d->comment;
+  return d->comment.get();
 }
 
 Speex::AudioProperties *Speex::File::audioProperties() const
 {
-  return d->properties;
+  return d->properties.get();
 }
 
 bool Speex::File::save()
 {
   if(!d->comment)
-    d->comment = new Ogg::XiphComment();
+    d->comment.reset(new Ogg::XiphComment());
 
   setPacket(1, d->comment->render());
 
@@ -127,8 +118,8 @@ void Speex::File::read(bool readProperties)
 
   ByteVector commentHeaderData = packet(1);
 
-  d->comment = new Ogg::XiphComment(commentHeaderData);
+  d->comment.reset(new Ogg::XiphComment(commentHeaderData));
 
   if(readProperties)
-    d->properties = new AudioProperties(this);
+    d->properties.reset(new AudioProperties(this));
 }

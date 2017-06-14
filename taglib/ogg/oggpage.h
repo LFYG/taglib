@@ -56,6 +56,17 @@ namespace TagLib {
        * Read an Ogg page from the \a file at the position \a pageOffset.
        */
       Page(File *file, long long pageOffset);
+      
+      /*!
+       * Creates an Ogg packet based on the data in \a packets.  The page number
+       * for each page will be set to \a pageNumber.
+       */
+      Page(const ByteVectorList &packets,
+           unsigned int streamSerialNumber,
+           int pageNumber,
+           bool firstPacketContinued = false,
+           bool lastPacketCompleted = true,
+           bool containsLastPacket = false);
 
       virtual ~Page();
 
@@ -84,16 +95,6 @@ namespace TagLib {
        * \see pageSequenceNumber()
        */
       void setPageSequenceNumber(int sequenceNumber);
-
-      /*!
-       * Returns a copy of the page with \a sequenceNumber set as sequence number.
-       *
-       * \see header()
-       * \see PageHeader::setPageSequenceNumber()
-       *
-       * \deprecated Always returns null.
-       */
-      Page* getCopyWithNewPageSequenceNumber(int sequenceNumber);
 
       /*!
        * Returns the index of the first packet wholly or partially contained in
@@ -154,67 +155,6 @@ namespace TagLib {
       int size() const;
 
       ByteVector render() const;
-
-      /*!
-       * Defines a strategy for pagination, or grouping pages into Ogg packets,
-       * for use with pagination methods.
-       *
-       * \note Yes, I'm aware that this is not a canonical "Strategy Pattern",
-       * the term was simply convenient.
-       */
-      enum PaginationStrategy {
-        /*!
-         * Attempt to put the specified set of packets into a single Ogg packet.
-         * If the sum of the packet data is greater than will fit into a single
-         * Ogg page -- 65280 bytes -- this will fall back to repagination using
-         * the recommended page sizes.
-         */
-        SinglePagePerGroup,
-        /*!
-         * Split the packet or group of packets into pages that conform to the
-         * sizes recommended in the Ogg standard.
-         */
-        Repaginate
-      };
-
-      /*!
-       * Pack \a packets into Ogg pages using the \a strategy for pagination.
-       * The page number indicator inside of the rendered packets will start
-       * with \a firstPage and be incremented for each page rendered.
-       * \a containsLastPacket should be set to true if \a packets contains the
-       * last page in the stream and will set the appropriate flag in the last
-       * rendered Ogg page's header.  \a streamSerialNumber should be set to
-       * the serial number for this stream.
-       *
-       * \note The "absolute granule position" is currently always zeroed using
-       * this method as this suffices for the comment headers.
-       *
-       * \warning The pages returned by this method must be deleted by the user.
-       * You can use List<T>::setAutoDelete(true) to set these pages to be
-       * automatically deleted when this list passes out of scope.
-       *
-       * \see PaginationStrategy
-       * \see List::setAutoDelete()
-       */
-      static List<Page *> paginate(const ByteVectorList &packets,
-                                   PaginationStrategy strategy,
-                                   unsigned int streamSerialNumber,
-                                   int firstPage,
-                                   bool firstPacketContinued = false,
-                                   bool lastPacketCompleted = true,
-                                   bool containsLastPacket = false);
-
-    protected:
-      /*!
-       * Creates an Ogg packet based on the data in \a packets.  The page number
-       * for each page will be set to \a pageNumber.
-       */
-      Page(const ByteVectorList &packets,
-           unsigned int streamSerialNumber,
-           int pageNumber,
-           bool firstPacketContinued = false,
-           bool lastPacketCompleted = true,
-           bool containsLastPacket = false);
 
     private:
       Page(const Page &);
